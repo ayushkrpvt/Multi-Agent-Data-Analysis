@@ -1,221 +1,160 @@
+"""
+Schema tool: reads the live SQLite schema and enriches it with
+schema/schema_metadata.json (descriptions, relationships, business rules)
+to build the context given to the LLM agents.
+"""
+
+import json
 import sqlite3
+from functools import lru_cache
 from pprint import pprint
 
-DB_PATH = "database/northwind.db"
+from tools.config import DB_PATH, SCHEMA_DIR
 
 
 def get_connection():
-    """
-    Create SQLite connection
-    """
     return sqlite3.connect(DB_PATH)
 
 
+@lru_cache(maxsize=1)
+def get_metadata() -> dict:
+    path = SCHEMA_DIR / "schema_metadata.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {"tables": {}, "relationships": [], "business_rules": []}
+
+
 def get_tables():
-    """
-    Returns list of all table names
-    """
+    """List of all table names in the database."""
 
     conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+    finally:
+        conn.close()
 
-    cursor.execute("""
-        SELECT name
-        FROM sqlite_master
-        WHERE type='table';
-    """)
-
-    tables = [
-        row[0]
-        for row in cursor.fetchall()
-    ]
-
-    conn.close()
-
-    return tables
+    return [r[0] for r in rows]
 
 
 def get_table_columns(table_name):
-    """
-    Returns columns for a specific table
-    """
+    """List of (column_name, column_type) for one table (junk columns hidden)."""
 
     conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        rows = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+    finally:
+        conn.close()
 
-    cursor.execute(
-        f"PRAGMA table_info({table_name})"
-    )
-
-    columns = [
-        column[1]
-        for column in cursor.fetchall()
+    return [
+        (r[1], r[2])
+        for r in rows
+        if not r[1].lower().startswith("unnamed")
     ]
 
-    conn.close()
 
-    return columns
-
-
+@lru_cache(maxsize=1)
 def get_schema():
-    """
-    Returns complete schema as dictionary
-    """
+    """{table: [column, ...]} for the whole database."""
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    return {
+        table: [c for c, _ in get_table_columns(table)]
+        for table in get_tables()
+    }
 
-    tables = get_tables()
 
-    schema = {}
+def normalize_tables(tables):
+    """Keep only real table names (case-insensitive match)."""
 
-    for table_name in tables:
+    lookup = {t.lower(): t for t in get_schema()}
 
-        cursor.execute(
-            f"PRAGMA table_info({table_name})"
-        )
+    result = []
+    for t in tables or []:
+        key = str(t).strip().lower()
+        if key in lookup and lookup[key] not in result:
+            result.append(lookup[key])
 
-        columns = cursor.fetchall()
+    return result
 
-        schema[table_name] = [
-            column[1]
-            for column in columns
-        ]
 
-    conn.close()
+def _table_block(table):
 
-    return schema
+    meta = get_metadata()["tables"].get(table, {})
+    col_meta = meta.get("columns", {})
+
+    lines = [f"Table: {table}"]
+    if meta.get("description"):
+        lines.append(f"  -- {meta['description']}")
+
+    for col, ctype in get_table_columns(table):
+        desc = col_meta.get(col, "")
+        lines.append(f"  - {col} ({ctype}){': ' + desc if desc else ''}")
+
+    return "\n".join(lines)
 
 
 def get_schema_text():
-    """
-    Returns entire schema as LLM-friendly text
-    """
+    """Full schema as LLM-friendly text."""
+    return "\n\n".join(_table_block(t) for t in get_schema())
 
-    schema = get_schema()
 
-    schema_text = ""
+def get_table_overview():
+    """One line per table: name + description (used by intent/planning)."""
 
-    for table, columns in schema.items():
-
-        schema_text += f"\nTable: {table}\n"
-
-        for column in columns:
-            schema_text += f"  - {column}\n"
-
-    return schema_text.strip()
+    meta = get_metadata()["tables"]
+    return "\n".join(
+        f"- {t}: {meta.get(t, {}).get('description', '')}"
+        for t in get_schema()
+    )
 
 
 def get_required_schema(required_tables):
-    """
-    Returns schema only for required tables
-    """
+    """Schema text only for the given tables."""
 
-    schema = get_schema()
-
-    schema_text = ""
-
-    for table in required_tables:
-
-        if table not in schema:
-            continue
-
-        schema_text += f"\nTable: {table}\n"
-
-        for column in schema[table]:
-            schema_text += f"  - {column}\n"
-
-    return schema_text.strip()
+    tables = normalize_tables(required_tables) or list(get_schema())
+    return "\n\n".join(_table_block(t) for t in tables)
 
 
 def get_relationships():
 
-    return """
-NORTHWIND RELATIONSHIPS
+    meta = get_metadata()
 
-customers.CustomerID = orders.CustomerID
+    rel = "\n".join(f"- {r}" for r in meta.get("relationships", []))
+    rules = "\n".join(f"- {r}" for r in meta.get("business_rules", []))
+    coverage = meta.get("data_coverage", {})
 
-employees.EmployeeID = orders.EmployeeID
+    return (
+        f"RELATIONSHIPS (join keys)\n{rel}\n\n"
+        f"BUSINESS RULES\n{rules}\n\n"
+        f"DATA COVERAGE\n"
+        f"- Orders from {coverage.get('first_order_date')} "
+        f"to {coverage.get('last_order_date')}\n"
+        f"- {coverage.get('note', '')}"
+    )
 
-orders.OrderID = order_details.OrderID
-
-products.ProductID = order_details.ProductID
-
-products.CategoryID = categories.CategoryID
-
-products.SupplierID = suppliers.SupplierID
-
-employee_territory.EmployeeID = employees.EmployeeID
-
-employee_territory.TerritoryID = territories.TerritoryID
-
-territories.RegionID = region.RegionID
-
-orders.ShipVia = shippers.ShipperID
-
-
-BUSINESS RULES
-
-Revenue Formula:
-
-order_details.UnitPrice
-*
-order_details.Quantity
-*
-(1 - order_details.Discount)
-
-Column Rules
-
-Quantity exists ONLY in:
-order_details.Quantity
-
-Discount exists ONLY in:
-order_details.Discount
-
-OrderDate exists ONLY in:
-orders.OrderDate
-
-Sales calculations should always use:
-order_details.UnitPrice
-order_details.Quantity
-order_details.Discount
-
-Never use:
-orders.Quantity
-orders.Discount
-products.Discount
-"""
 
 def get_sql_context(required_tables):
     """
-    Complete context passed to SQL Agent.
-
-    Includes:
-    1. Relevant schema
-    2. Relationship information
+    Complete context passed to the SQL agent:
+    relevant tables (+ any join tables needed) + relationships + rules.
     """
 
-    schema_text = get_required_schema(
-        required_tables
+    tables = normalize_tables(required_tables)
+
+    # Revenue always needs order_details; dates always need orders.
+    if tables and "order_details" in tables and "orders" not in tables:
+        tables.append("orders")
+
+    return (
+        "DATABASE SCHEMA\n\n"
+        f"{get_required_schema(tables)}\n\n"
+        "--------------------------------------------------\n\n"
+        f"{get_relationships()}"
     )
-
-    relationships = get_relationships()
-
-    return f"""
-DATABASE SCHEMA
-
-{schema_text}
-
---------------------------------------------------
-
-RELATIONSHIPS
-
-{relationships}
-"""
 
 
 def print_schema():
-
     pprint(get_schema())
 
 
@@ -224,18 +163,5 @@ if __name__ == "__main__":
     print("\nTABLES\n")
     print(get_tables())
 
-    print("\nFULL SCHEMA\n")
-    print_schema()
-
-    print("\nCOMPLETE SCHEMA TEXT\n")
-    print(get_schema_text())
-
     print("\nSQL CONTEXT\n")
-    print(
-        get_sql_context([
-            "products",
-            "categories",
-            "orders",
-            "order_details"
-        ])
-    )
+    print(get_sql_context(["products", "categories", "order_details"]))

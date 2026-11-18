@@ -1,150 +1,157 @@
-import json
-from pathlib import Path
+"""
+Agent 3 - SQL Generation Agent
 
-from tools.llm import get_llm
-from tools.schema_tool import get_sql_context
-from tools.sql_validator import validate_sql
+Implemented as three LangGraph nodes forming a self-correcting loop:
+
+    sql_generate  ->  sql_validate  --(invalid, retries left)-->  sql_generate
+                           |
+                        (valid)
+                           v
+                      sql_execute   --(error / 0 rows, retries left)--> sql_generate
+                           |
+                (success: next data query or -> Analysis Agent)
+
+Every attempt is logged in state["sql_attempts"] for explainability.
+"""
+
+from agents.common import traced
+from tools.config import MAX_SQL_RETRIES
 from tools.database_tool import execute_query
+from tools.sql_generator import generate_sql
+from tools.sql_validator import validate_sql
 
-llm = get_llm()
+
+def _current_query(state):
+    return state["data_queries"][state.get("query_index", 0)]
 
 
-def sql_agent(state):
+@traced("SQL Agent", "generate SQL")
+def sql_generate(state):
 
-    intent = state["intent"]
-    plan = state["plan"]
+    dq = _current_query(state)
+    attempt = state.get("sql_attempt", 0) + 1
 
-    required_tables = plan["required_tables"]
-
-    schema_context = get_sql_context(
-        required_tables
+    sql = generate_sql(
+        question=state["user_query"],
+        intent=state["intent"],
+        plan=state["plan"],
+        data_query=dq,
+        previous_sql=state.get("current_sql", "") if state.get("sql_error") else "",
+        error=state.get("sql_error") or "",
     )
 
-    prompt_template = Path(
-        "prompts/sql_prompt.txt"
-    ).read_text(
-        encoding="utf-8"
-    )
+    return {
+        "current_sql": sql,
+        "sql_attempt": attempt,
+        "_detail": f"query '{dq['id']}' attempt {attempt}",
+    }
 
-    max_retries = 3
 
-    validation_error = ""
+@traced("SQL Agent", "validate SQL")
+def sql_validate(state):
 
-    for attempt in range(max_retries):
+    dq = _current_query(state)
+    ok, error = validate_sql(state.get("current_sql", ""))
 
-        print("\n" + "=" * 80)
-        print(f"SQL GENERATION ATTEMPT {attempt + 1}")
-        print("=" * 80)
+    update = {"sql_error": None if ok else error, "_detail": "passed" if ok else error}
 
-        prompt = f"""
-{prompt_template}
+    if not ok:
+        update["sql_attempts"] = [{
+            "query_id": dq["id"], "attempt": state.get("sql_attempt", 1),
+            "sql": state.get("current_sql", ""), "status": "validation_failed", "error": error,
+        }]
 
-DATABASE SCHEMA:
+    return update
 
-{schema_context}
 
-USER QUESTION:
+@traced("SQL Agent", "execute SQL")
+def sql_execute(state):
 
-{state["user_query"]}
+    dq = _current_query(state)
+    sql = state["current_sql"]
+    attempt = state.get("sql_attempt", 1)
 
-INTENT:
+    try:
+        df = execute_query(sql)
+    except Exception as e:
+        err = f"Execution error: {e}"
+        return {
+            "sql_error": err,
+            "sql_attempts": [{"query_id": dq["id"], "attempt": attempt, "sql": sql,
+                              "status": "execution_failed", "error": err}],
+            "_detail": err,
+        }
 
-{json.dumps(intent, indent=2)}
+    if df.empty:
+        err = ("The query ran but returned 0 rows. Check filter values (exact names such as "
+               "'Beverages', 'Germany'), date filters (strftime('%Y', o.OrderDate) = '1997'; data "
+               "covers 1996-07 to 1998-05) and join keys.")
+        return {
+            "sql_error": err,
+            "sql_attempts": [{"query_id": dq["id"], "attempt": attempt, "sql": sql,
+                              "status": "empty_result", "error": err}],
+            "_detail": "0 rows",
+        }
 
-EXECUTION PLAN:
+    results = dict(state.get("query_results") or {})
+    results[dq["id"]] = {
+        "query_id": dq["id"],
+        "purpose": dq.get("purpose", ""),
+        "description": dq.get("description", ""),
+        "sql": sql,
+        "row_count": int(len(df)),
+        "columns": list(df.columns),
+        "records": df.to_dict(orient="records"),
+    }
 
-{json.dumps(plan, indent=2)}
+    return {
+        "query_results": results,
+        "query_index": state.get("query_index", 0) + 1,
+        "sql_attempt": 0,
+        "sql_error": None,
+        "sql_attempts": [{"query_id": dq["id"], "attempt": attempt, "sql": sql, "status": "passed"}],
+        "_detail": f"'{dq['id']}' -> {len(df)} rows, columns {list(df.columns)}",
+    }
 
-PREVIOUS VALIDATION ERROR:
 
-{validation_error}
-"""
+@traced("SQL Agent", "give up on query")
+def sql_give_up(state):
+    """Retries exhausted. Primary query failure stops the pipeline; supporting ones are skipped."""
 
-        response = llm.invoke(prompt)
-
-        sql_query = response.content.strip()
-
-        # Remove markdown fences if model returns them
-        sql_query = sql_query.replace(
-            "```sql", ""
-        ).replace(
-            "```", ""
-        ).strip()
-
-        print("\n" + "=" * 80)
-        print("GENERATED SQL")
-        print("=" * 80)
-        print(sql_query)
-
-        is_valid, error = validate_sql(
-            sql_query
+    dq = _current_query(state)
+    failed = list(state.get("failed_queries") or []) + [dq["id"]]
+    update = {
+        "failed_queries": failed,
+        "query_index": state.get("query_index", 0) + 1,
+        "sql_attempt": 0,
+        "sql_error": None,
+        "_detail": f"'{dq['id']}' failed after {MAX_SQL_RETRIES} attempts",
+    }
+    if dq["id"] == "primary" or not state.get("query_results"):
+        update["error"] = (
+            f"Could not generate a valid SQL query for '{dq['id']}' after {MAX_SQL_RETRIES} attempts. "
+            f"Last error: {state.get('sql_error')}"
         )
+    return update
 
-        if is_valid:
 
-            print("\n✅ SQL VALIDATION PASSED")
+# ----------------------------------------
+# Routing functions (used as LangGraph conditional edges)
+# ----------------------------------------
 
-            try:
+def route_after_validate(state):
+    if not state.get("sql_error"):
+        return "execute"
+    return "retry" if state.get("sql_attempt", 0) < MAX_SQL_RETRIES else "give_up"
 
-                result_df = execute_query(
-                    sql_query
-                )
 
-                print("\n✅ QUERY EXECUTED SUCCESSFULLY")
+def route_after_execute(state):
+    if state.get("sql_error"):
+        return "retry" if state.get("sql_attempt", 0) < MAX_SQL_RETRIES else "give_up"
+    return "next_query" if state.get("query_index", 0) < len(state["data_queries"]) else "analyze"
 
-                print("\nRESULT SHAPE:")
-                print(result_df.shape)
 
-                print("\nFIRST 5 ROWS:")
-                print(result_df.head())
-
-                state["sql_query"] = (
-                    sql_query
-                )
-
-                state["sql_validation"] = (
-                    "Passed"
-                )
-
-                state["query_results"] = (
-                    result_df.to_dict(
-                        orient="records"
-                    )
-                )
-
-                return state
-
-            except Exception as db_error:
-
-                validation_error = (
-                    f"Execution Error: {db_error}"
-                )
-
-                print("\n❌ QUERY EXECUTION FAILED")
-                print(db_error)
-
-        else:
-
-            print("\n❌ SQL VALIDATION FAILED")
-            print(error)
-
-            validation_error = f"""
-The previous SQL query failed validation.
-
-Validation Error:
-{error}
-
-Generate a corrected SQLite query.
-
-Important:
-- Use only SQLite syntax.
-- Do not use JSON_AGG.
-- Do not use JSON_OBJECT.
-- Do not use JSON_BUILD_OBJECT.
-- OrderDate exists only in the orders table.
-- Return only SQL.
-"""
-
-    raise ValueError(
-        f"Failed to generate valid SQL after {max_retries} attempts."
-    )
+def route_after_give_up(state):
+    if state.get("error"):
+        return "fail"
+    return "next_query" if state.get("query_index", 0) < len(state["data_queries"]) else "analyze"

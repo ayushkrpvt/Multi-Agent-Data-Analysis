@@ -1,0 +1,69 @@
+{
+  "question": "Show monthly sales trends for 1997",
+  "analysis_type": "trend",
+  "error": null,
+  "sql_attempts": 1,
+  "queries": [
+    "primary"
+  ],
+  "failed_queries": [],
+  "seconds": 57.6,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question",
+      "status": "ok",
+      "detail": "trend | metric=Sales | dims=['Month'] | filters=[] | period=1997",
+      "seconds": 5.7
+    },
+    {
+      "agent": "Planning Agent",
+      "step": "create execution plan",
+      "status": "ok",
+      "detail": "4 steps, 1 data queries: ['primary']",
+      "seconds": 5.31
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "generate SQL",
+      "status": "ok",
+      "detail": "query 'primary' attempt 1",
+      "seconds": 2.85
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "validate SQL",
+      "status": "ok",
+      "detail": "passed",
+      "seconds": 0.02
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "execute SQL",
+      "status": "ok",
+      "detail": "'primary' -> 12 rows, columns ['Month', 'Sales']",
+      "seconds": 0.03
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "profile data & choose analysis",
+      "status": "ok",
+      "detail": "requested=trend, route=trend; primary: time=Month, metric=Sales, dims=[]",
+      "seconds": 0.01
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "trend analysis",
+      "status": "ok",
+      "detail": "direction=upward, change=16.17%",
+      "seconds": 2.91
+    },
+    {
+      "agent": "Reporting Agent",
+      "step": "charts + executive report",
+      "status": "ok",
+      "detail": "1 charts, 3 recommendations -> 20261119_001714_show_monthly_sales_trends_for__2e8c.md",
+      "seconds": 40.79
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "question": "How has the number of orders changed per quarter?",
+  "analysis_type": "trend",
+  "error": null,
+  "sql_attempts": 1,
+  "queries": [
+    "primary"
+  ],
+  "failed_queries": [],
+  "seconds": 10.5,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question",
+      "status": "ok",
+      "detail": "trend | metric=Orders | dims=['Quarter'] | filters=[] | period=All",
+      "seconds": 2.2
+    },
+    {
+      "agent": "Planning Agent",
+      "step": "create execution plan",
+      "status": "ok",
+      "detail": "3 steps, 1 data queries: ['primary']",
+      "seconds": 1.66
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "generate SQL",
+      "status": "ok",
+      "detail": "query 'primary' attempt 1",
+      "seconds": 2.01
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "validate SQL",
+      "status": "ok",
+      "detail": "passed",
+      "seconds": 0.01
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "execute SQL",
+      "status": "ok",
+      "detail": "'primary' -> 8 rows, columns ['Quarter', 'Orders']",
+      "seconds": 0.01
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "profile data & choose analysis",
+      "status": "ok",
+      "detail": "requested=trend, route=trend; primary: time=Quarter, metric=Orders, dims=[]",
+      "seconds": 0.0
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "trend analysis",
+      "status": "ok",
+      "detail": "direction=upward, change=160.0%",
+      "seconds": 2.03
+    },
+    {
+      "agent": "Reporting Agent",
+      "step": "charts + executive report",
+      "status": "ok",
+      "detail": "1 charts, 3 recommendations -> 20261119_001937_how_has_the_number_of_orders_c_35d1.md",
+      "seconds": 2.61
+    }
+  ]
+}

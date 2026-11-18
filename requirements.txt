@@ -1,34 +1,31 @@
-# LLM & LangGraph
+# LLM orchestration
 langchain
-langgraph
 langchain-core
+langgraph
 
-# Ollama Integration
-langchain-ollama
-ollama
+# LLM providers (only the one you use is needed)
+langchain-ollama        # LLM_PROVIDER=ollama (local)
+langchain-google-genai  # LLM_PROVIDER=gemini (cloud, optional)
 
-# Database
-sqlalchemy
+# Database & SQL validation
 sqlglot
 
-# Data Analysis
+# Data analysis
 pandas
 numpy
-scikit-learn
 
 # Visualization
 matplotlib
-seaborn
-plotly
 
 # Validation
 pydantic
 
-# Environment Variables
+# Environment variables
 python-dotenv
 
-# Streamlit UI
+# UI
 streamlit
 
-# Optional Utilities
+# Utilities
 tabulate
+pytest

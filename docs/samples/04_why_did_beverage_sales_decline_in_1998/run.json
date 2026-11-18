@@ -1,0 +1,91 @@
+{
+  "question": "Why did beverage sales decline in 1998?",
+  "analysis_type": "root_cause",
+  "error": null,
+  "sql_attempts": 2,
+  "queries": [
+    "primary",
+    "by_country"
+  ],
+  "failed_queries": [],
+  "seconds": 44.8,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question",
+      "status": "ok",
+      "detail": "root_cause | metric=Sales | dims=['Month', 'Product'] | filters=['Category = Beverages'] | period=1997-1998",
+      "seconds": 7.15
+    },
+    {
+      "agent": "Planning Agent",
+      "step": "create execution plan",
+      "status": "ok",
+      "detail": "4 steps, 2 data queries: ['primary', 'by_country']",
+      "seconds": 7.78
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "generate SQL",
+      "status": "ok",
+      "detail": "query 'primary' attempt 1",
+      "seconds": 2.01
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "validate SQL",
+      "status": "ok",
+      "detail": "passed",
+      "seconds": 0.02
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "execute SQL",
+      "status": "ok",
+      "detail": "'primary' -> 154 rows, columns ['Month', 'ProductName', 'Sales', 'Quantity', 'Orders']",
+      "seconds": 0.02
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "generate SQL",
+      "status": "ok",
+      "detail": "query 'by_country' attempt 1",
+      "seconds": 8.35
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "validate SQL",
+      "status": "ok",
+      "detail": "passed",
+      "seconds": 0.01
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "execute SQL",
+      "status": "ok",
+      "detail": "'by_country' -> 161 rows, columns ['Month', 'Country', 'Sales']",
+      "seconds": 0.02
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "profile data & choose analysis",
+      "status": "ok",
+      "detail": "requested=root_cause, route=root_cause; primary: time=Month, metric=Sales, dims=['ProductName']; by_country: time=Month, metric=Sales, dims=['Country']",
+      "seconds": 0.01
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "root cause analysis",
+      "status": "ok",
+      "detail": "drivers analysed: ['primary', 'by_country']",
+      "seconds": 9.64
+    },
+    {
+      "agent": "Reporting Agent",
+      "step": "charts + executive report",
+      "status": "ok",
+      "detail": "3 charts, 4 recommendations -> 20261118_234419_why_did_beverage_sales_decline_7485.md",
+      "seconds": 9.76
+    }
+  ]
+}

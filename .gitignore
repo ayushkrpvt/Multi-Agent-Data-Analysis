@@ -50,3 +50,9 @@ dist/
 
 # If you DON'T want database in GitHub
 # database/*.db
+# Keep the example env file
+!.env.example
+
+# Keep output folders
+!outputs/charts/.gitkeep
+!outputs/reports/.gitkeep

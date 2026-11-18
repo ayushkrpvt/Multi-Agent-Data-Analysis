@@ -1,0 +1,69 @@
+{
+  "question": "Which employees generated the highest sales in 1997?",
+  "analysis_type": "comparison",
+  "error": null,
+  "sql_attempts": 1,
+  "queries": [
+    "primary"
+  ],
+  "failed_queries": [],
+  "seconds": 50.4,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question",
+      "status": "ok",
+      "detail": "comparison | metric=Sales | dims=['Employee'] | filters=[] | period=1997",
+      "seconds": 7.96
+    },
+    {
+      "agent": "Planning Agent",
+      "step": "create execution plan",
+      "status": "ok",
+      "detail": "3 steps, 1 data queries: ['primary']",
+      "seconds": 6.9
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "generate SQL",
+      "status": "ok",
+      "detail": "query 'primary' attempt 1",
+      "seconds": 9.18
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "validate SQL",
+      "status": "ok",
+      "detail": "passed",
+      "seconds": 0.02
+    },
+    {
+      "agent": "SQL Agent",
+      "step": "execute SQL",
+      "status": "ok",
+      "detail": "'primary' -> 9 rows, columns ['Employee', 'Sales', 'OrderCount']",
+      "seconds": 0.03
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "profile data & choose analysis",
+      "status": "ok",
+      "detail": "requested=comparison, route=comparison; primary: time=None, metric=Sales, dims=['Employee']",
+      "seconds": 0.01
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": "comparison analysis",
+      "status": "ok",
+      "detail": "top={'rank': 1, 'Employee': 'Margaret Peacock', 'Sales': 139477.7, 'share_pct': 21.18}",
+      "seconds": 17.53
+    },
+    {
+      "agent": "Reporting Agent",
+      "step": "charts + executive report",
+      "status": "ok",
+      "detail": "1 charts, 3 recommendations -> 20261118_234744_which_employees_generated_the__c61f.md",
+      "seconds": 8.8
+    }
+  ]
+}

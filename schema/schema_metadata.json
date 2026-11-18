@@ -1,0 +1,157 @@
+{
+  "database": "Northwind (SQLite)",
+  "data_coverage": {
+    "first_order_date": "1996-07-04",
+    "last_order_date": "1998-05-06",
+    "note": "1996 contains only Jul-Dec and 1998 only Jan-early May. Year-over-year totals for 1996 and 1998 are PARTIAL years; compare equal periods (e.g. Jan-Apr) or monthly averages."
+  },
+  "tables": {
+    "orders": {
+      "description": "One row per customer order (header).",
+      "columns": {
+        "OrderID": "Primary key",
+        "CustomerID": "FK -> customers.CustomerID (TEXT, e.g. 'ALFKI')",
+        "EmployeeID": "FK -> employees.EmployeeID (sales rep)",
+        "OrderDate": "TEXT 'YYYY-MM-DD HH:MM:SS'. Year: strftime('%Y', OrderDate). Month: strftime('%Y-%m', OrderDate)",
+        "RequiredDate": "TEXT date the customer needs the order",
+        "ShippedDate": "TEXT date shipped, NULL if not shipped",
+        "ShipVia": "FK -> shippers.ShipperID",
+        "Freight": "Shipping cost charged",
+        "ShipName": "Recipient name",
+        "ShipAddress": "Shipping address",
+        "ShipCity": "Shipping city",
+        "ShipRegion": "Shipping region (often NULL)",
+        "ShipPostalCode": "Postal code",
+        "ShipCountry": "Shipping country"
+      }
+    },
+    "order_details": {
+      "description": "Order line items. One row per product per order. Source of all sales / revenue / quantity figures.",
+      "columns": {
+        "OrderID": "FK -> orders.OrderID",
+        "ProductID": "FK -> products.ProductID",
+        "UnitPrice": "Price actually charged per unit on this order",
+        "Quantity": "Units sold",
+        "Discount": "Fraction 0-1 (0 for all rows in this dataset)"
+      }
+    },
+    "products": {
+      "description": "Product catalogue.",
+      "columns": {
+        "ProductID": "Primary key",
+        "ProductName": "Product name",
+        "SupplierID": "FK -> suppliers.SupplierID",
+        "CategoryID": "FK -> categories.CategoryID",
+        "QuantityPerUnit": "Pack size text",
+        "UnitPrice": "Current list price (NOT the sales price, use order_details.UnitPrice for sales)",
+        "UnitsInStock": "Current stock",
+        "UnitsOnOrder": "Units on purchase order",
+        "ReorderLevel": "Stock level that triggers reorder",
+        "Discontinued": "1 = discontinued, 0 = active"
+      }
+    },
+    "categories": {
+      "description": "Product categories: Beverages, Condiments, Confections, Dairy Products, Grains/Cereals, Meat/Poultry, Produce, Seafood.",
+      "columns": {
+        "CategoryID": "Primary key",
+        "CategoryName": "Category name",
+        "Description": "Category description"
+      }
+    },
+    "customers": {
+      "description": "Customer companies.",
+      "columns": {
+        "CustomerID": "Primary key (TEXT)",
+        "CompanyName": "Customer company name",
+        "ContactName": "Contact person",
+        "ContactTitle": "Contact title",
+        "Address": "Address",
+        "City": "City",
+        "Region": "Region (often NULL)",
+        "PostalCode": "Postal code",
+        "Country": "Customer country",
+        "Phone": "Phone",
+        "Fax": "Fax"
+      }
+    },
+    "employees": {
+      "description": "Sales employees.",
+      "columns": {
+        "EmployeeID": "Primary key",
+        "LastName": "Last name",
+        "FirstName": "First name. Full name: FirstName || ' ' || LastName",
+        "Title": "Job title",
+        "TitleOfCourtesy": "Mr./Ms. etc.",
+        "BirthDate": "TEXT date",
+        "HireDate": "TEXT date",
+        "Address": "Address",
+        "City": "City",
+        "Region": "Region",
+        "Country": "Country",
+        "HomePhone": "Phone",
+        "Salary": "Salary"
+      }
+    },
+    "suppliers": {
+      "description": "Product suppliers.",
+      "columns": {
+        "SupplierID": "Primary key",
+        "CompanyName": "Supplier company name",
+        "Country": "Supplier country"
+      }
+    },
+    "shippers": {
+      "description": "Shipping companies.",
+      "columns": {
+        "ShipperID": "Primary key",
+        "CompanyName": "Shipper name",
+        "Phone": "Phone"
+      }
+    },
+    "employee_territory": {
+      "description": "Mapping employees to sales territories.",
+      "columns": {
+        "EmployeeID": "FK -> employees.EmployeeID",
+        "TerritoryID": "FK -> territories.TerritoryID"
+      }
+    },
+    "territories": {
+      "description": "Sales territories.",
+      "columns": {
+        "TerritoryID": "Primary key",
+        "TerritoryDescription": "Territory name",
+        "RegionID": "FK -> region.RegionID"
+      }
+    },
+    "region": {
+      "description": "Sales regions (Eastern, Western, Northern, Southern).",
+      "columns": {
+        "RegionID": "Primary key",
+        "RegionDescription": "Region name"
+      }
+    }
+  },
+  "relationships": [
+    "customers.CustomerID = orders.CustomerID",
+    "employees.EmployeeID = orders.EmployeeID",
+    "orders.OrderID = order_details.OrderID",
+    "products.ProductID = order_details.ProductID",
+    "products.CategoryID = categories.CategoryID",
+    "products.SupplierID = suppliers.SupplierID",
+    "orders.ShipVia = shippers.ShipperID",
+    "employee_territory.EmployeeID = employees.EmployeeID",
+    "employee_territory.TerritoryID = territories.TerritoryID",
+    "territories.RegionID = region.RegionID"
+  ],
+  "business_rules": [
+    "Sales / Revenue = SUM(order_details.UnitPrice * order_details.Quantity * (1 - order_details.Discount))",
+    "Quantity and Discount exist ONLY in order_details. OrderDate exists ONLY in orders.",
+    "Number of orders = COUNT(DISTINCT orders.OrderID)",
+    "Average order value = Sales / COUNT(DISTINCT orders.OrderID)",
+    "Filter by year with strftime('%Y', orders.OrderDate) = '1997' (string comparison).",
+    "Group by month with strftime('%Y-%m', orders.OrderDate) AS Month.",
+    "Late shipment: orders.ShippedDate > orders.RequiredDate.",
+    "Always give aggregated columns clear aliases, e.g. AS Sales, AS Orders.",
+    "Round money to 2 decimals with ROUND(x, 2)."
+  ]
+}
