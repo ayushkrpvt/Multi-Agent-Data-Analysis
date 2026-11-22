@@ -20,5 +20,10 @@ FORBIDDEN
 - DROP, DELETE, UPDATE, INSERT, ALTER, CREATE, PRAGMA, ATTACH
 - Non-SQLite functions: YEAR(), MONTH(), DATE_TRUNC, EXTRACT, TO_CHAR, JSON_AGG, ARRAY_AGG, STRING_AGG, DATEDIFF
 
-OUTPUT
-Return ONLY the SQL query. No explanation, no markdown, no ```.
+TOOLS
+- get_column_values(table, column, search) : distinct values of a text column. Use it BEFORE filtering on a
+  text value you are not sure about (category, product, country, company names). At most 2 lookups.
+- get_table_schema(table_names)            : columns of tables that are not in the schema below.
+- submit_sql_query(sql, explanation)       : submit your final query. ALWAYS finish by calling this tool.
+
+The schema below is complete for the planned tables, so usually you can submit directly.

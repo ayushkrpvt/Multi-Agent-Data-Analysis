@@ -1,50 +1,51 @@
 # Employee Sales Performance Report for 1997
 
 **Question:** Which employees generated the highest sales in 1997?  
-**Analysis type:** comparison  
-**Generated:** 2026-11-18 23:48 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
+**Analysis type (chosen by Analysis Agent):** rank  
+**Generated:** 2026-11-23 00:26 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
 
 ## Business Summary
 
-In 1997, total sales reached 658,388.75 across 9 employees, with Margaret Peacock generating the highest sales at 139,477.70. Sales performance is heavily skewed toward top representatives, with the top two employees accounting for over 38% of total revenue and the top three accounting for over half. Meanwhile, Anne Dodsworth recorded the lowest sales at 29,577.55.
+In 1997, Margaret Peacock generated the highest sales with $139,477.70 across 81 orders, leading all 9 ranked employees. Janet Leverling secured second place with $111,788.61 from 71 orders, followed by Nancy Davolio in third place with $97,533.58 from 55 orders. Together, these top three employees contributed over half of the total ranked sales of $658,388.75.
 
 ## Key Findings
 
-- Margaret Peacock led all employees with 139,477.70 in sales, representing a 21.18% share of the total.
-- Janet Leverling ranked second with 111,788.61 in sales (16.98% share), and Nancy Davolio ranked third with 97,533.58 (14.81% share).
-- Anne Dodsworth recorded the lowest sales among the 9 employees at 29,577.55 (4.49% share).
-- Total annual sales across all employees in 1997 amounted to 658,388.75.
-- The top 20% of members account for 38.16% of total revenue, highlighting a heavy reliance on top performers.
+- Margaret Peacock led 1997 sales with $139,477.70 (81 orders), outperforming the second-place employee by $27,689.09 or 24.77%.
+- Janet Leverling ranked second with $111,788.61 across 71 orders, representing a 16.98% share of the total ranked sales.
+- Nancy Davolio achieved third place with $97,533.58 across 55 orders, accounting for a 14.81% share.
+- Andrew Fuller and Robert King generated $74,958.60 (11.39% share) and $66,689.14 (10.13% share) respectively.
+- The lowest-ranked employees in 1997 were Steven Buchanan with $32,595.05 (4.95% share) and Anne Dodsworth with $29,577.55 (4.49% share).
 
 ## Visualizations
 
-### Sales by Employee
+### Ranking: Sales by Employee Name
 
-![Sales by Employee](charts/sales_by_employee.png)
+![Ranking: Sales by Employee Name](charts/ranking_sales_by_employee_name.png)
 
-_Ranking of members by the metric._
+_Leaderboard with rank positions._
 
 ## Root Cause Analysis
 
-- Sales performance is heavily skewed toward top representatives, creating key-person risk and a wide disparity where top performers outpace bottom performers by a ratio of 4.72.
-- The dataset contains orders from 1996-07-04 to 1998-05-06 only, making 1996 and 1998 partial years, which establishes 1997 as the primary complete annual period for full evaluation.
+- Performance disparities among employees show that the top three sales representatives (Margaret Peacock, Janet Leverling, and Nancy Davolio) account for 52.98% of total ranked sales.
+- Order volume heavily correlates with total revenue generation, as seen with Margaret Peacock leading both total sales and order count (81 orders).
+- Dataset parameters cover the full dataset period from 1996-07-04 to 1998-05-06, pre-filtered for 1997 transactions.
 
 ## Recommendations
 
 | Priority | Action | Rationale |
 |---|---|---|
-| High | Implement peer mentoring programs pairing top sales representatives like Margaret Peacock and Janet Leverling with lower-performing staff such as Anne Dodsworth and Steven Buchanan. | Sales performance is heavily skewed with Margaret Peacock generating 139,477.70 compared to Anne Dodsworth's 29,577.55, indicating an opportunity to replicate best practices. |
-| Medium | Review account allocations and territory assignments to ensure lower-performing representatives like Anne Dodsworth and Steven Buchanan have adequate opportunities. | The bottom representatives account for significantly smaller shares of the 658,388.75 total sales. |
-| Medium | Establish targeted training initiatives focused on product positioning and client management for representatives falling below the mean sales threshold of 73,154.31. | Six members are required to reach 80% of total sales, showing that the lower half of employees underperform relative to the mean. |
+| High | Analyze Margaret Peacock's sales strategies, customer accounts, and product mix to establish best practices for the broader team. | Margaret Peacock is the top sales generator by a significant margin ($139,477.70), contributing over a fifth of the total 1997 sales. |
+| Medium | Provide targeted sales training and account support for lower-performing representatives such as Steven Buchanan and Anne Dodsworth. | Steven Buchanan and Anne Dodsworth generated the lowest sales in 1997 at $32,595.05 and $29,577.55 respectively, indicating a large performance gap. |
+| Medium | Evaluate the order conversion rates and average order values for mid-tier representatives like Andrew Fuller ($74,958.60) and Robert King ($66,689.14). | Understanding mid-tier performance can help bridge the gap toward top-tier revenue generation. |
 
 ## Data Caveats
 
-- Dataset contains orders from 1996-07-04 to 1998-05-06 only. 1996 contains only Jul-Dec and 1998 only Jan-early May. Year-over-year totals for 1996 and 1998 are PARTIAL years; compare equal periods (e.g. Jan-Apr) or monthly averages.
+- Data covers full dataset period 1996-07-04 to 1998-05-06, pre-filtered for 1997 sales.
 
 ## Suggested Next Questions
 
-- What specific product categories or customer accounts drove Margaret Peacock's 139,477.70 in sales during 1997?
-- How do individual employee sales trends in 1997 compare during the partial periods available in 1996 and 1998?
+- Which specific product categories or high-value customers drove Margaret Peacock's leading sales in 1997?
+- How does the order size and discount frequency compare between top-performing employees and lower-ranked employees?
 
 ---
 ## Appendix: How This Answer Was Produced
@@ -55,7 +56,8 @@ _Ranking of members by the metric._
   "business_question": "Which employees generated the highest sales in 1997?",
   "metric": "Sales",
   "kpis": [
-    "Sales"
+    "Sales",
+    "Orders"
   ],
   "dimensions": [
     "Employee"
@@ -63,7 +65,6 @@ _Ranking of members by the metric._
   "filters": [],
   "time_period": "1997",
   "time_granularity": "none",
-  "analysis_type": "comparison",
   "required_tables": [
     "employees",
     "orders",
@@ -73,49 +74,59 @@ _Ranking of members by the metric._
 ```
 
 ### 2. Execution Plan (Planning Agent)
-**Objective:** Identify the employees who generated the highest total sales in 1997
+**Objective:** Identify the employees who generated the highest sales in 1997
 
-1. Aggregate sales by employee for the year 1997
-2. Rank employees in descending order of sales
-3. Compute the contribution share of each employee to total 1997 sales
+1. Filter orders for the year 1997
+2. Join employees, orders, and order_details to calculate total sales and order count per employee
+3. Sort employees by sales in descending order
+4. Identify top performing employees for 1997
 
 ### 3. Data Retrieval (SQL Agent)
 
-**primary** - Total sales by employee in 1997 (9 rows, 1 attempt(s))
+**primary** - Retrieve total sales and order count per employee for the year 1997 (9 rows, 1 attempt(s))
 
 ```sql
 SELECT 
-    e.FirstName || ' ' || e.LastName AS Employee,
+    e.FirstName || ' ' || e.LastName AS EmployeeName,
     ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales,
-    COUNT(DISTINCT o.OrderID) AS OrderCount
+    COUNT(DISTINCT o.OrderID) AS Orders
 FROM employees e
 JOIN orders o ON e.EmployeeID = o.EmployeeID
 JOIN order_details od ON o.OrderID = od.OrderID
 WHERE strftime('%Y', o.OrderDate) = '1997'
-GROUP BY e.EmployeeID, e.FirstName, e.LastName
+GROUP BY e.EmployeeID
 ORDER BY Sales DESC
 ```
 
-| Employee         |      Sales |   OrderCount |
-|:-----------------|-----------:|-------------:|
-| Margaret Peacock | 139,477.70 |           81 |
-| Janet Leverling  | 111,788.61 |           71 |
-| Nancy Davolio    |  97,533.58 |           55 |
-| Andrew Fuller    |  74,958.60 |           41 |
-| Robert King      |  66,689.14 |           36 |
-| Laura Callahan   |  59,776.52 |           54 |
-| Michael Suyama   |  45,992.00 |           33 |
-| Steven Buchanan  |  32,595.05 |           18 |
-| Anne Dodsworth   |  29,577.55 |           19 |
+| EmployeeName     |      Sales |   Orders |
+|:-----------------|-----------:|---------:|
+| Margaret Peacock | 139,477.70 |       81 |
+| Janet Leverling  | 111,788.61 |       71 |
+| Nancy Davolio    |  97,533.58 |       55 |
+| Andrew Fuller    |  74,958.60 |       41 |
+| Robert King      |  66,689.14 |       36 |
+| Laura Callahan   |  59,776.52 |       54 |
+| Michael Suyama   |  45,992.00 |       33 |
+| Steven Buchanan  |  32,595.05 |       18 |
+| Anne Dodsworth   |  29,577.55 |       19 |
 
-### 4. Agent Trace
+### 5. Native Tool Calls
+
+| # | Agent | Tool | Arguments |
+|---|---|---|---|
+| 1 | Intent Agent | `submit_intent` | {"time_period": "1997", "required_tables": ["employees", "orders", "order_details"], "metric": "Sales", "filters": [], " |
+| 2 | Planning Agent | `submit_plan` | {"data_queries": [{"description": "columns: EmployeeName (concatenation of FirstName and LastName), Sales, Orders. Filte |
+| 3 | SQL Agent | `submit_sql_query` | {"sql": "SELECT \n    e.FirstName \|\| ' ' \|\| e.LastName AS EmployeeName,\n    ROUND(SUM(od.UnitPrice * od.Quantity *  |
+| 4 | Analysis Agent | `rank_analysis` | {"top_n": 9, "ascending": false, "dataset_id": "primary"} |
+| 5 | Analysis Agent | `submit_analysis` | {"summary": "In 1997, Margaret Peacock generated the highest sales with $139,477.70 (81 orders), followed by Janet Lever |
+
+### 6. Agent Trace
 
 | # | Agent | Step | Status | Time (s) |
 |---|---|---|---|---|
-| 1 | Intent Agent | understand question | ok | 7.96 |
-| 2 | Planning Agent | create execution plan | ok | 6.9 |
-| 3 | SQL Agent | generate SQL | ok | 9.18 |
+| 1 | Intent Agent | understand question + guardrails | ok | 1.91 |
+| 2 | Planning Agent | create execution plan | ok | 1.92 |
+| 3 | SQL Agent | generate SQL | ok | 2.43 |
 | 4 | SQL Agent | validate SQL | ok | 0.02 |
 | 5 | SQL Agent | execute SQL | ok | 0.03 |
-| 6 | Analysis Agent | profile data & choose analysis | ok | 0.01 |
-| 7 | Analysis Agent | comparison analysis | ok | 17.53 |
+| 6 | Analysis Agent | choose analysis via tool calling | ok | 18.41 |

@@ -1,50 +1,52 @@
 # Top 10 Customers by Revenue Analysis
 
 **Question:** Who are the top 10 customers by revenue?  
-**Analysis type:** comparison  
-**Generated:** 2026-11-18 23:44 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
+**Analysis type (chosen by Analysis Agent):** rank  
+**Generated:** 2026-11-23 00:19 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
 
 ## Business Summary
 
-QUICK-Stop leads the top 10 customers with $117,483.39 in sales, closely followed by Save-a-lot Markets and Ernst Handel. Together, the top 3 customers account for over 56% of the total top 10 revenue of $616,789.20. Note that the dataset contains orders from 1996-07-04 to 1998-05-06 only, meaning year-over-year totals for 1996 and 1998 represent partial years.
+The top customer by revenue is QUICK-Stop with $117,483.39, followed closely by Save-a-lot Markets with $115,673.39 and Ernst Handel with $113,236.68. Together, the top 3 customers represent over 56% of the total revenue among the top 10 customers evaluated from 1996-07-04 to 1998-05-06. The tenth customer, Queen Cozinha, recorded $30,226.10 in sales.
 
 ## Key Findings
 
-- Top customer by revenue is QUICK-Stop with $117,483.39 in sales (19.05% share).
-- Save-a-lot Markets is the second top customer with $115,673.39 in sales (18.75% share).
-- Ernst Handel is the third top customer with $113,236.68 in sales (18.36% share).
-- Queen Cozinha is the 10th customer with the lowest sales in the top group at $30,226.10 (4.90% share).
-- Total revenue for the top 10 customers combined is $616,789.20.
+- Top customer by revenue is QUICK-Stop with $117,483.39.
+- Second customer by revenue is Save-a-lot Markets with $115,673.39, trailing by a slim margin of only $1,810.00.
+- Third customer by revenue is Ernst Handel with $113,236.68.
+- Tenth customer by revenue is Queen Cozinha with $30,226.10.
+- The top 3 customers alone account for 56.16% of total revenue among the top 10 customers.
 
 ## Visualizations
 
-### Sales by Customer
+### Top 10: Sales by Company Name
 
-![Sales by Customer](charts/sales_by_customer.png)
+![Top 10: Sales by Company Name](charts/top_10_sales_by_company_name.png)
 
-_Ranking of members by the metric._
+_Leaderboard with rank positions._
 
 ## Root Cause Analysis
 
-- High revenue concentration exists among the top 3 customers (QUICK-Stop, Save-a-lot Markets, and Ernst Handel), who each hold roughly 18% to 19% share of the top 10 total.
-- Dataset contains orders from 1996-07-04 to 1998-05-06 only, meaning 1996 contains only Jul-Dec and 1998 only Jan-early May, making year-over-year totals partial periods.
+- High revenue concentration among the top 3 customers (QUICK-Stop, Save-a-lot Markets, and Ernst Handel), who collectively drive more than half of the top 10 sales.
+- A very tight competition at the very top, where QUICK-Stop holds only a 1.56% gap over Save-a-lot Markets.
+- Dataset limitations restrict the view to the top 10 ranked members totaling $616,789.20 across the period from 1996-07-04 to 1998-05-06.
 
 ## Recommendations
 
 | Priority | Action | Rationale |
 |---|---|---|
-| High | Assign dedicated account managers to QUICK-Stop, Save-a-lot Markets, and Ernst Handel. | They contribute over 56% of the top 10 total revenue, so losing any of these top 3 clients would severely impact overall revenue. |
-| Medium | Implement loyalty programs or volume incentives for Queen Cozinha and other lower-ranking members in the top 10. | Queen Cozinha represents the lowest sales in the top group at $30,226.10 and can be nurtured to increase order frequency. |
-| Low | Analyze purchasing patterns across customers using normalized equal periods rather than partial calendar years. | The dataset spans partial periods from 1996-07-04 to 1998-05-06, requiring careful comparison using monthly averages or equal timeframes. |
+| High | Establish dedicated account management and loyalty programs for QUICK-Stop and Save-a-lot Markets. | QUICK-Stop and Save-a-lot Markets generate the highest revenues ($117,483.39 and $115,673.39 respectively) with a very narrow gap, making them prime targets for retention efforts. |
+| Medium | Implement targeted growth campaigns for mid-tier customers like Queen Cozinha and Königlich Essen. | Queen Cozinha represents the tenth position with $30,226.10, indicating potential to scale lower-ranking accounts and reduce overall revenue concentration risk. |
+| High | Monitor order frequency and product preferences for Ernst Handel, the third-largest customer. | Ernst Handel contributes $113,236.68 (18.36% share) and is part of the top 3 core revenue cluster that dictates overall financial performance. |
 
 ## Data Caveats
 
-- Dataset contains orders from 1996-07-04 to 1998-05-06 only. 1996 contains only Jul-Dec and 1998 only Jan-early May. Year-over-year totals for 1996 and 1998 are PARTIAL years; compare equal periods (e.g. Jan-Apr) or monthly averages.
+- The dataset provided contains only 8 rows initially, but rank_analysis evaluated the dataset of 10 rows.
 
 ## Suggested Next Questions
 
-- What specific product categories do QUICK-Stop, Save-a-lot Markets, and Ernst Handel purchase most frequently?
-- What is the order frequency and average order value for Queen Cozinha compared to QUICK-Stop?
+- What specific product categories are driving the high order volumes for QUICK-Stop and Save-a-lot Markets?
+- How frequently do the top 3 customers place orders compared to the lower-ranked customers like Queen Cozinha?
+- What is the historical purchase trend for Ernst Handel across the full 1996-1998 period?
 
 ---
 ## Appendix: How This Answer Was Produced
@@ -63,7 +65,6 @@ _Ranking of members by the metric._
   "filters": [],
   "time_period": "All",
   "time_granularity": "none",
-  "analysis_type": "comparison",
   "required_tables": [
     "customers",
     "orders",
@@ -73,19 +74,19 @@ _Ranking of members by the metric._
 ```
 
 ### 2. Execution Plan (Planning Agent)
-**Objective:** Identify the top 10 customers based on total revenue generated.
+**Objective:** Identify the top 10 customers by total revenue.
 
-1. Aggregate total sales by customer across all available time periods
-2. Rank customers in descending order of sales
-3. Select the top 10 customers and calculate their revenue contribution
+1. Aggregate total revenue (Sales) per customer across all orders
+2. Rank customers in descending order of revenue
+3. Limit the results to the top 10 customers
 
 ### 3. Data Retrieval (SQL Agent)
 
-**primary** - Calculate total sales per customer to identify the top 10 (10 rows, 1 attempt(s))
+**primary** - Total revenue per customer for top 10 ranking (10 rows, 1 attempt(s))
 
 ```sql
 SELECT 
-    c.CompanyName AS Customer,
+    c.CompanyName, 
     ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales
 FROM customers c
 JOIN orders o ON c.CustomerID = o.CustomerID
@@ -95,7 +96,7 @@ ORDER BY Sales DESC
 LIMIT 10
 ```
 
-| Customer                     |      Sales |
+| CompanyName                  |      Sales |
 |:-----------------------------|-----------:|
 | QUICK-Stop                   | 117,483.39 |
 | Save-a-lot Markets           | 115,673.39 |
@@ -108,14 +109,23 @@ LIMIT 10
 | Kniglich Essen               |  31,745.75 |
 | Queen Cozinha                |  30,226.10 |
 
-### 4. Agent Trace
+### 5. Native Tool Calls
+
+| # | Agent | Tool | Arguments |
+|---|---|---|---|
+| 1 | Intent Agent | `submit_intent` | {"dimensions": ["Customer"], "metric": "Sales", "required_tables": ["customers", "orders", "order_details"], "filters":  |
+| 2 | Planning Agent | `submit_plan` | {"required_tables": ["customers", "orders", "order_details"], "analysis_steps": ["Aggregate total revenue (Sales) per cu |
+| 3 | SQL Agent | `submit_sql_query` | {"sql": "SELECT \n    c.CompanyName, \n    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales\nFROM  |
+| 4 | Analysis Agent | `rank_analysis` | {"ascending": false, "top_n": 10, "dataset_id": "primary"} |
+| 5 | Analysis Agent | `submit_analysis` | {"summary": "The top customer by revenue is QUICK-Stop with $117,483.39, followed closely by Save-a-lot Markets with $11 |
+
+### 6. Agent Trace
 
 | # | Agent | Step | Status | Time (s) |
 |---|---|---|---|---|
-| 1 | Intent Agent | understand question | ok | 17.87 |
-| 2 | Planning Agent | create execution plan | ok | 15.64 |
-| 3 | SQL Agent | generate SQL | ok | 1.6 |
-| 4 | SQL Agent | validate SQL | ok | 0.02 |
-| 5 | SQL Agent | execute SQL | ok | 0.05 |
-| 6 | Analysis Agent | profile data & choose analysis | ok | 0.02 |
-| 7 | Analysis Agent | comparison analysis | ok | 3.07 |
+| 1 | Intent Agent | understand question + guardrails | ok | 1.42 |
+| 2 | Planning Agent | create execution plan | ok | 5.4 |
+| 3 | SQL Agent | generate SQL | ok | 4.35 |
+| 4 | SQL Agent | validate SQL | ok | 0.01 |
+| 5 | SQL Agent | execute SQL | ok | 0.01 |
+| 6 | Analysis Agent | choose analysis via tool calling | ok | 8.22 |

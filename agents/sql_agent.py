@@ -1,6 +1,9 @@
 """
 Agent 3 - SQL Generation Agent
 
+sql_generate uses native tool calling (tools/sql_generator.py): the LLM may look up
+exact column values / extra table schemas, then calls submit_sql_query.
+
 Implemented as three LangGraph nodes forming a self-correcting loop:
 
     sql_generate  ->  sql_validate  --(invalid, retries left)-->  sql_generate
@@ -31,7 +34,7 @@ def sql_generate(state):
     dq = _current_query(state)
     attempt = state.get("sql_attempt", 0) + 1
 
-    sql = generate_sql(
+    sql, explanation, tool_log = generate_sql(
         question=state["user_query"],
         intent=state["intent"],
         plan=state["plan"],
@@ -40,10 +43,12 @@ def sql_generate(state):
         error=state.get("sql_error") or "",
     )
 
+    lookups = [c["tool"] for c in tool_log if c["tool"] != "submit_sql_query"]
     return {
         "current_sql": sql,
         "sql_attempt": attempt,
-        "_detail": f"query '{dq['id']}' attempt {attempt}",
+        "tool_calls": [{"agent": "SQL Agent", "query_id": dq["id"], **c} for c in tool_log],
+        "_detail": f"query '{dq['id']}' attempt {attempt}" + (f", tool lookups: {lookups}" if lookups else ""),
     }
 
 

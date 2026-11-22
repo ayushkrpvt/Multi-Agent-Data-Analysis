@@ -21,6 +21,7 @@ SAMPLE_QUESTIONS = [
     "Which countries generate the most revenue?",
     "How has the number of orders changed per quarter?",
     "Which employees generated the highest sales in 1997?",
+    "What's the weather in Paris?  (guardrail demo)",
 ]
 
 NODE_LABELS = {
@@ -30,11 +31,7 @@ NODE_LABELS = {
     "sql_validate": ("🛡️", "SQL Agent", "Validating SQL"),
     "sql_execute": ("🗄️", "SQL Agent", "Executing query"),
     "sql_give_up": ("⚠️", "SQL Agent", "Retries exhausted"),
-    "analysis_agent": ("🔬", "Analysis Agent", "Profiling data & choosing analysis"),
-    "trend_analysis": ("📈", "Analysis Agent", "Trend analysis"),
-    "comparison_analysis": ("📊", "Analysis Agent", "Comparison analysis"),
-    "root_cause_analysis": ("🔎", "Analysis Agent", "Root cause analysis"),
-    "anomaly_detection": ("🚨", "Analysis Agent", "Anomaly detection"),
+    "analysis_agent": ("🔬", "Analysis Agent", "Choosing & running analysis (tool calling)"),
     "reporting_agent": ("📝", "Reporting Agent", "Charts & executive report"),
 }
 
@@ -52,7 +49,7 @@ with st.sidebar:
     st.subheader("💡 Sample questions")
     for q in SAMPLE_QUESTIONS:
         if st.button(q, width="stretch"):
-            st.session_state["question"] = q
+            st.session_state["question"] = q.split("  (")[0]
 
 # ---------------- Main ----------------
 st.title("📊 Multi-Agent Business Data Analytics")
@@ -74,8 +71,17 @@ if run:
         def on_step(node, update):
             icon, agent, label = NODE_LABELS.get(node, ("•", node, ""))
             entry = (update.get("trace") or [{}])[-1]
-            ok = entry.get("status") != "error" and not update.get("sql_error")
-            mark = "✅" if ok else "🔁" if update.get("sql_error") else "❌"
+            if entry.get("status") == "blocked":
+                mark = "🛑"
+            elif update.get("analysis_request"):
+                mark = "🔁 needs more data → re-planning"
+            elif update.get("sql_error"):
+                mark = "🔁"
+            else:
+                mark = "✅" if entry.get("status") != "error" else "❌"
+            tools_used = [c["tool"] for c in update.get("tool_calls") or []]
+            if tools_used:
+                label += f" · tools: {', '.join(tools_used)}"
             detail = str(entry.get("detail", ""))[:160]
             st.write(f"{icon} **{agent}** — {label} {mark}  \n<small>{detail}</small>",
                      unsafe_allow_html=True)
@@ -83,7 +89,10 @@ if run:
         try:
             result = run_analysis(question.strip(), on_step=on_step)
             st.session_state["result"] = result
-            if result.get("error"):
+            if (result.get("guardrail") or {}).get("blocked"):
+                status.update(label="Question is outside the scope of this assistant", state="complete",
+                              expanded=False)
+            elif result.get("error"):
                 status.update(label="Pipeline stopped with an error", state="error")
             else:
                 status.update(label="Analysis complete", state="complete", expanded=False)
@@ -92,6 +101,12 @@ if run:
             st.exception(e)
 
 result = st.session_state.get("result")
+
+if result and (result.get("guardrail") or {}).get("blocked"):
+    g = result["guardrail"]
+    st.info(f"🤖 {g.get('message')}")
+    st.caption(f"Guardrail: {g.get('category')} ({g.get('layer')}) — {g.get('reason')}")
+    result = None
 
 if result:
 
@@ -106,7 +121,11 @@ if result:
     with tabs[0]:
         if report:
             st.header(report["title"])
-            st.markdown(f"**Analysis type:** `{result.get('analysis_route')}`")
+            st.markdown(f"**Analysis type (chosen by Analysis Agent):** `{result.get('analysis_route')}`")
+            replans = (result.get("plan") or {}).get("replans") or []
+            if replans:
+                st.caption(f"🔁 The Analysis Agent requested more data {len(replans)} time(s): "
+                           + "; ".join(r.get("reason", "") for r in replans))
             st.subheader("Business Summary")
             st.write(report["business_summary"])
 
@@ -168,6 +187,8 @@ if result:
     with tabs[3]:
         st.subheader("Agent execution trace")
         st.dataframe(pd.DataFrame(result.get("trace") or []), width="stretch", hide_index=True)
+        st.subheader("Native tool calls")
+        st.dataframe(pd.DataFrame(result.get("tool_calls") or []), width="stretch", hide_index=True)
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**Intent (Agent 1)**")

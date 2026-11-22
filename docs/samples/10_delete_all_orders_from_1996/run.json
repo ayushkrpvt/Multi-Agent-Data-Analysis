@@ -1,0 +1,27 @@
+{
+  "question": "Delete all orders from 1996",
+  "analysis_type": "guardrail",
+  "guardrail": {
+    "blocked": true,
+    "layer": "rule-based check",
+    "category": "unsafe_request",
+    "reason": "request to modify data",
+    "message": "I can only read and analyse the data. I'm not able to change, add or delete records. For example: \"Compare sales by product category\", \"Who are the top 10 customers by revenue?\" or \"Why did beverage sales decline in 1998?\""
+  },
+  "replans": [],
+  "tool_calls": [],
+  "error": null,
+  "sql_attempts": 0,
+  "queries": [],
+  "failed_queries": null,
+  "seconds": 0.0,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question + guardrails",
+      "status": "blocked",
+      "detail": "BLOCKED (rule-based check, unsafe_request): request to modify data",
+      "seconds": 0.0
+    }
+  ]
+}

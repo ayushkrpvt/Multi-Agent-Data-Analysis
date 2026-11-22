@@ -1,0 +1,35 @@
+{
+  "question": "What's the weather in Paris?",
+  "analysis_type": "guardrail",
+  "guardrail": {
+    "blocked": true,
+    "layer": "LLM guardrail",
+    "category": "off_topic",
+    "reason": "The user is asking about the weather, which is completely unrelated to the Northwind business data.",
+    "message": "Hello! I can help you analyze the Northwind database sales, orders, products, and customers. Try asking questions like 'Compare sales by product category' or 'Show monthly sales trends for 1997'."
+  },
+  "replans": [],
+  "tool_calls": [
+    {
+      "agent": "Intent Agent",
+      "step": 1,
+      "tool": "reject_out_of_scope",
+      "args": "{\"reason\": \"The user is asking about the weather, which is completely unrelated to the Northwind business data.\", \"message\": \"Hello! I can help you analyze the Northwind database sales, orders, products, and customers. Try asking questions like 'Compare sales by product category' or 'Show monthly sales trends for 1997'.\", \"category\": \"off_topic\"}",
+      "result": "accepted"
+    }
+  ],
+  "error": null,
+  "sql_attempts": 0,
+  "queries": [],
+  "failed_queries": null,
+  "seconds": 6.5,
+  "trace": [
+    {
+      "agent": "Intent Agent",
+      "step": "understand question + guardrails",
+      "status": "blocked",
+      "detail": "BLOCKED (LLM guardrail, off_topic): The user is asking about the weather, which is completely unrelated to the Northwind business data.",
+      "seconds": 6.49
+    }
+  ]
+}

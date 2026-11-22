@@ -13,10 +13,16 @@
 
 ### 2. Architecture (≈1 min)
 Show the diagram in `docs/ARCHITECTURE.md` or the README.
-> "Each agent has one responsibility and hands a validated, structured output to the next.
-> The SQL agent has a self-correction loop: if validation or execution fails, the error goes back to it and it retries.
-> The analysis agent routes to one of four branches: trend, comparison, root cause or anomaly.
-> Importantly, the statistics are computed in Python, and the LLM only interprets them, so the numbers are reliable."
+> "Each agent acts through native tool calling and hands a validated, structured output to the next.
+> The intent agent has guardrails, so off-topic or unsafe questions get a friendly reply.
+> The SQL agent can look up exact values with tools and corrects itself when validation fails.
+> The analysis agent is a single node that decides the analysis type itself (trend, comparison, rank, root cause or anomaly) by choosing which analysis tool to call. If the data isn't enough, it sends the flow back to planning and SQL.
+> The statistics are computed in Python, and the LLM only interprets them, so the numbers are reliable."
+
+### 2b. Guardrails (≈30 s)
+Click **"What's the weather in Paris?"** in the sidebar → **Analyze**.
+> "The intent agent recognises this isn't about our business data and replies politely with example questions. No SQL is generated."
+Optionally type **"Delete all orders from 1996"** to show it is blocked instantly by the rule-based layer.
 
 ### 3. Demo 1: Comparison (≈1 min)
 Click **"Compare sales by product category"** → **Analyze**.
@@ -27,6 +33,7 @@ Click **"Compare sales by product category"** → **Analyze**.
 ### 4. Demo 2: Root cause, the highlight (≈2 min)
 Type **"Why did beverage sales decline in 1998?"** → **Analyze**.
 - Point out that the Planning Agent created **2 data queries**: by product and by country.
+- In the progress box, point at the Analysis Agent line: **"tools: root_cause_analysis, trend_analysis"**. The agent chose the root-cause analysis itself.
 - **Executive Report**: *"the premise is contradicted by the data"*, +157% like-for-like.
 > "The question assumes a decline. The agents noticed the data ends on 6 May 1998, compared the same months in both years, and found beverage sales actually grew 157%, driven by Côte de Blaye and by customers in Germany, the USA and Brazil. A simple SQL chatbot would have invented reasons for a decline that never happened."
 - **Charts** tab: contribution charts (blue = increase, red = decrease).
@@ -37,12 +44,12 @@ Click **"Are there any unusual spikes or drops in monthly sales?"**
 
 ### 6. Explainability (≈1 min)
 - **Data & SQL** tab: generated SQL, result table, **all SQL attempts** (show a retry if one happened).
-- **Agent Trace** tab: every agent step with timings, the intent JSON, the plan JSON, and the computed facts.
+- **Agent Trace** tab: every agent step with timings, the **native tool calls** table (which agent called which tool, with arguments), the intent JSON, the plan JSON, and the computed facts.
 > "Every answer is fully traceable: what each agent decided, the SQL it ran, and the numbers behind each claim."
 - Optional: open the saved Markdown report from `outputs/reports/`.
 
 ### 7. Close (≈30 s)
-> "To summarise: five collaborating agents, structured hand-offs, self-correcting SQL, four analysis strategies, data-aware caveats, and executive reports, all running locally. Thank you."
+> "To summarise: five collaborating agents using native tool calling, guardrails, self-correcting SQL, an analysis agent that picks among five analysis strategies and asks for more data when needed, data-aware caveats, and executive reports, all running locally. Thank you."
 
 ---
 

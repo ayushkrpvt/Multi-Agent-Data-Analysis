@@ -52,7 +52,7 @@ def render_markdown(state, report: dict, charts: list) -> str:
         f"# {report['title']}",
         "",
         f"**Question:** {state['user_query']}  ",
-        f"**Analysis type:** {state.get('analysis_route')}  ",
+        f"**Analysis type (chosen by Analysis Agent):** {state.get('analysis_route')}  ",
         f"**Generated:** {datetime.now():%Y-%m-%d %H:%M} · **LLM:** {llm_description()} · **Dataset:** Northwind",
         "",
         "## Business Summary",
@@ -111,7 +111,22 @@ def render_markdown(state, report: dict, charts: list) -> str:
     for qid in state.get("failed_queries", []):
         lines += [f"**{qid}** - failed after all retries (skipped)", ""]
 
-    lines += ["### 4. Agent Trace", "", "| # | Agent | Step | Status | Time (s) |", "|---|---|---|---|---|"]
+    replans = plan.get("replans") or []
+    if replans:
+        lines += ["### 4. Re-planning (Analysis Agent requested more data)", ""]
+        for i, r in enumerate(replans, 1):
+            lines.append(f"{i}. {r.get('reason')} → new queries: {', '.join(r.get('new_queries', []))}")
+        lines.append("")
+
+    calls = [c for c in state.get("tool_calls", []) if c.get("tool")]
+    if calls:
+        lines += ["### 5. Native Tool Calls", "", "| # | Agent | Tool | Arguments |", "|---|---|---|---|"]
+        for i, c in enumerate(calls, 1):
+            args = str(c.get("args", "")).replace("|", "\\|").replace("\n", " ")[:120]
+            lines.append(f"| {i} | {c['agent']} | `{c['tool']}` | {args} |")
+        lines.append("")
+
+    lines += ["### 6. Agent Trace", "", "| # | Agent | Step | Status | Time (s) |", "|---|---|---|---|---|"]
     for i, t in enumerate(state.get("trace", []), 1):
         lines.append(f"| {i} | {t['agent']} | {t['step']} | {t['status']} | {t['seconds']} |")
     lines.append("")

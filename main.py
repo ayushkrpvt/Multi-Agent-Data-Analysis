@@ -14,6 +14,9 @@ def main():
     result = run_analysis(question)
 
     print("\n" + "=" * 80)
+    if (result.get("guardrail") or {}).get("blocked"):
+        print(result["guardrail"]["message"])
+        return
     if result.get("error"):
         print("ERROR:", result["error"])
         sys.exit(1)

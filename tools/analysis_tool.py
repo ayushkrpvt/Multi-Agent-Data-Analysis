@@ -517,3 +517,53 @@ def anomaly_analysis(df: pd.DataFrame, prof: Dict, z_threshold: float = 2.0) -> 
         "partial_periods_excluded_from_baseline": partial,
         "series": {k: _r(v) for k, v in s.items()} if len(s) <= 40 else None,
     }
+
+
+def rank_analysis(df: pd.DataFrame, prof: Dict, top_n: int = 10, ascending: bool = False) -> Dict:
+    """Leaderboard: positions, gaps between ranks, leader margin, cumulative share."""
+
+    m, dims = prof["metric"], prof["dimensions"]
+    if not m or not dims:
+        return {"error": "Rank analysis needs a dimension column and a numeric metric."}
+
+    d = dims[0]
+    ratio = is_ratio_metric(m)
+    s = df.groupby(df[d].astype(str))[m].agg(_agg(m)).sort_values(ascending=ascending)
+    total = None if ratio else s.sum()
+    top_n = max(1, min(int(top_n or 10), len(s)))
+
+    rows = []
+    cum = 0.0
+    values = list(s.items())
+    for i, (k, v) in enumerate(values[:top_n]):
+        nxt = values[i + 1][1] if i + 1 < len(values) else None
+        row = {"rank": i + 1, d: k, m: _r(v)}
+        if total:
+            cum += v
+            row["share_pct"] = _r(v / total * 100)
+            row["cumulative_share_pct"] = _r(cum / total * 100)
+        if nxt is not None:
+            row["gap_to_next"] = _r(v - nxt)
+            row["gap_to_next_pct"] = _pct(v, nxt)
+        rows.append(row)
+
+    facts = {
+        "metric": m,
+        "dimension": d,
+        "order": "ascending (bottom first)" if ascending else "descending (top first)",
+        "members_ranked": int(len(s)),
+        "top_n": top_n,
+        "leaderboard": rows,
+        "leader": {d: values[0][0], m: _r(values[0][1])},
+        "leader_margin_over_second": _r(values[0][1] - values[1][1]) if len(values) > 1 else None,
+        "leader_margin_over_second_pct": _pct(values[0][1], values[1][1]) if len(values) > 1 else None,
+        "median": _r(s.median()),
+    }
+    if total:
+        facts["total"] = _r(total)
+        facts["top_n_share_pct"] = _r(s.head(top_n).sum() / total * 100)
+    if len(s) > top_n:
+        facts["bottom"] = [{d: k, m: _r(v)} for k, v in values[-3:]]
+    if len(df) == top_n and prof["rows"] == top_n:
+        facts["note"] = "The query returned only the top N rows, so shares are relative to the ranked members only."
+    return facts

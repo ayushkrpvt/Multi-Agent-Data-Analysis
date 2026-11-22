@@ -25,6 +25,8 @@ QUESTIONS = [
     "Which countries generate the most revenue?",
     "Which employees generated the highest sales in 1997?",
     "How has the number of orders changed per quarter?",
+    "What's the weather in Paris?",                 # guardrail demo (off-topic)
+    "Delete all orders from 1996",                  # guardrail demo (unsafe request)
 ]
 
 OUT = BASE_DIR / "docs" / "samples"
@@ -36,7 +38,15 @@ def save(i, question, result):
         shutil.rmtree(folder)
     (folder / "charts").mkdir(parents=True)
 
-    md = result.get("report_markdown") or f"# Failed\n\n{result.get('error')}"
+    g = result.get("guardrail") or {}
+    if g.get("blocked"):
+        md = (f"# Guardrail: question not answered\n\n**Question:** {question}\n\n"
+              f"**Assistant reply:**\n\n> {g.get('message')}\n\n"
+              f"**Guardrail layer:** {g.get('layer')}  \n**Category:** {g.get('category')}  \n"
+              f"**Reason:** {g.get('reason')}\n\nThe workflow stopped at the Intent Agent; "
+              "no SQL was generated and no data was accessed.\n")
+    else:
+        md = result.get("report_markdown") or f"# Failed\n\n{result.get('error')}"
     for c in result.get("charts") or []:
         src = Path(c["path"])
         dst = folder / "charts" / src.name.replace(result["run_id"] + "_", "")
@@ -46,7 +56,10 @@ def save(i, question, result):
     (folder / "report.md").write_text(md, encoding="utf-8")
     summary = {
         "question": question,
-        "analysis_type": result.get("analysis_route"),
+        "analysis_type": result.get("analysis_route") or ("guardrail" if g.get("blocked") else None),
+        "guardrail": g,
+        "replans": (result.get("plan") or {}).get("replans", []),
+        "tool_calls": result.get("tool_calls"),
         "error": result.get("error"),
         "sql_attempts": len(result.get("sql_attempts") or []),
         "queries": list((result.get("query_results") or {}).keys()),
@@ -72,7 +85,7 @@ def main():
         folder, s = save(i, q, result)
         rows.append((i, q, s, folder))
         print(f"-> {folder.name}: type={s['analysis_type']} attempts={s['sql_attempts']} error={s['error']}")
-        time.sleep(3)
+        time.sleep(2)
 
     index = OUT / "README.md"
     existing = {}
@@ -82,15 +95,21 @@ def main():
             if m:
                 existing[int(m.group(1))] = line
     for i, q, s, folder in rows:
-        status = "✅" if not s["error"] else "❌"
+        status = "🛑 blocked (guardrail)" if (s.get("guardrail") or {}).get("blocked") else \
+            ("✅" if not s["error"] else "❌")
+        tools = sorted({c["tool"] for c in s.get("tool_calls") or [] if c.get("agent") == "Analysis Agent"
+                        and c["tool"] not in ("submit_analysis",)})
         existing[i] = (f"| {i} | [{q}]({folder.name}/report.md) | {s['analysis_type']} | "
-                       f"{len(s['queries'])} | {s['sql_attempts']} | {s['seconds']} | {status} |")
+                       f"{', '.join(tools) or '-'} | {len(s['queries'])} | {len(s.get('replans') or [])} | "
+                       f"{s['sql_attempts']} | {s['seconds']} | {status} |")
     lines = [
         "# Sample Questions and Outputs", "",
         f"Generated with **{llm_description()}** on the Northwind database. "
         "Each folder contains the full executive report (`report.md`), its charts and the agent trace (`run.json`).", "",
-        "| # | Question | Analysis type | Data queries | SQL attempts (all queries) | Time (s) | Status |",
-        "|---|---|---|---|---|---|---|",
+        "The **analysis type** is chosen by the Analysis Agent through native tool calling "
+        "(the tools it called are listed).", "",
+        "| # | Question | Analysis type | Analysis tools called | Data queries | Re-plans | SQL attempts | Time (s) | Status |",
+        "|---|---|---|---|---|---|---|---|---|",
         *[existing[k] for k in sorted(existing)], "",
     ]
     index.write_text("\n".join(lines), encoding="utf-8")

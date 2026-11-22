@@ -1,41 +1,90 @@
 {
   "question": "How has the number of orders changed per quarter?",
   "analysis_type": "trend",
+  "guardrail": {
+    "blocked": false
+  },
+  "replans": [],
+  "tool_calls": [
+    {
+      "agent": "Intent Agent",
+      "step": 1,
+      "tool": "submit_intent",
+      "args": "{\"time_period\": \"All\", \"business_question\": \"How has the number of orders changed per quarter?\", \"required_tables\": [\"orders\"], \"dimensions\": [\"Quarter\"], \"filters\": [], \"metric\": \"Orders\", \"time_granularity\": \"quarter\", \"kpis\": [\"Orders\"]}",
+      "result": "accepted"
+    },
+    {
+      "agent": "Planning Agent",
+      "step": 1,
+      "tool": "submit_plan",
+      "args": "{\"required_tables\": [\"orders\"], \"data_queries\": [{\"id\": \"primary\", \"purpose\": \"Retrieve the number of orders per quarter across all available years\", \"description\": \"columns: Quarter (format YYYY-Qn), Orders (count of distinct order IDs)\"}], \"chart_suggestion\": \"line\", \"analysis_steps\": [\"Extract order date and count orders grouped by quarter\", \"Analyze quarterly trend of order volume\"], \"objectiv ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "SQL Agent",
+      "query_id": "primary",
+      "step": 1,
+      "tool": "submit_sql_query",
+      "args": "{\"sql\": \"SELECT \\n  strftime('%Y', OrderDate) || '-Q' || ((strftime('%m', OrderDate) + 2) / 3) AS Quarter,\\n  COUNT(DISTINCT OrderID) AS Orders\\nFROM orders\\nGROUP BY Quarter\\nORDER BY Quarter\", \"tables_used\": [\"orders\"], \"explanation\": \"Returns the number of orders per quarter formatted as YYYY-Qn.\"}",
+      "result": "accepted"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 1,
+      "tool": "trend_analysis",
+      "args": "{\"dataset_id\": \"primary\"}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Orders\", \"time_column\": \"Quarter\", \"periods\": 8, \"series\": {\"1996-Q3\": 70, \"1996-Q4\": 82, \"1997-Q1\": 92, \"1997-Q2\": 93, \"1997-Q3\": 103, \"1997-Q4\": 120, \"1998-Q1\": 182, \"1998-Q2\": 88}, \"first_period\": {\"period\": \"1996-Q3\", \"value\": 70}, \"last_period\": {\"period\": \"199 ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 2,
+      "tool": "anomaly_detection",
+      "args": "{\"dataset_id\": \"primary\", \"z_threshold\": 2}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Orders\", \"analysed_by\": \"Quarter\", \"points\": 8, \"baseline_mean\": 106.0, \"baseline_std\": 34.26, \"z_threshold\": 1.5, \"iqr_fence\": [50.25, 148.25], \"anomalies\": [{\"Quarter\": \"1998-Q1\", \"Orders\": 182, \"z_score\": 2.22, \"deviation_from_mean_pct\": 71.7, \"direction\": \"high\" ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 3,
+      "tool": "submit_analysis",
+      "args": "{\"insights\": [{\"business_implication\": \"Order volume experienced steady quarterly growth leading up to early 1998.\", \"insight\": \"Orders grew from 70 in 1996-Q3 to 182 in 1998-Q1 (a 160% increase across complete periods).\"}], \"summary\": \"The number of orders followed an overall upward trend, growing by 160% across complete periods from 70 in 1996-Q3 to a peak of 182 in 1998-Q1. Note that 1998-Q2 ap ... (truncated)",
+      "result": "accepted"
+    }
+  ],
   "error": null,
   "sql_attempts": 1,
   "queries": [
     "primary"
   ],
   "failed_queries": [],
-  "seconds": 10.5,
+  "seconds": 47.6,
   "trace": [
     {
       "agent": "Intent Agent",
-      "step": "understand question",
+      "step": "understand question + guardrails",
       "status": "ok",
-      "detail": "trend | metric=Orders | dims=['Quarter'] | filters=[] | period=All",
-      "seconds": 2.2
+      "detail": "metric=Orders | dims=['Quarter'] | filters=[] | period=All",
+      "seconds": 1.5
     },
     {
       "agent": "Planning Agent",
       "step": "create execution plan",
       "status": "ok",
-      "detail": "3 steps, 1 data queries: ['primary']",
-      "seconds": 1.66
+      "detail": "2 steps, 1 data queries: ['primary']",
+      "seconds": 1.56
     },
     {
       "agent": "SQL Agent",
       "step": "generate SQL",
       "status": "ok",
       "detail": "query 'primary' attempt 1",
-      "seconds": 2.01
+      "seconds": 10.08
     },
     {
       "agent": "SQL Agent",
       "step": "validate SQL",
       "status": "ok",
       "detail": "passed",
-      "seconds": 0.01
+      "seconds": 0.02
     },
     {
       "agent": "SQL Agent",
@@ -46,24 +95,17 @@
     },
     {
       "agent": "Analysis Agent",
-      "step": "profile data & choose analysis",
+      "step": "choose analysis via tool calling",
       "status": "ok",
-      "detail": "requested=trend, route=trend; primary: time=Quarter, metric=Orders, dims=[]",
-      "seconds": 0.0
-    },
-    {
-      "agent": "Analysis Agent",
-      "step": "trend analysis",
-      "status": "ok",
-      "detail": "direction=upward, change=160.0%",
-      "seconds": 2.03
+      "detail": "analysis_type=trend; tools used: ['trend_analysis', 'anomaly_detection']",
+      "seconds": 17.78
     },
     {
       "agent": "Reporting Agent",
       "step": "charts + executive report",
       "status": "ok",
-      "detail": "1 charts, 3 recommendations -> 20261119_001937_how_has_the_number_of_orders_c_35d1.md",
-      "seconds": 2.61
+      "detail": "1 charts, 3 recommendations -> 20261123_002158_how_has_the_number_of_orders_c_49ca.md",
+      "seconds": 16.68
     }
   ]
 }

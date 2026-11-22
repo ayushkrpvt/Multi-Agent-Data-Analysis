@@ -156,16 +156,18 @@ def line_chart(df, prof, title, run_id, partial=None):
     return _save(fig, run_id, title)
 
 
-def bar_chart(df, prof, title, run_id, top_n=15):
+def bar_chart(df, prof, title, run_id, top_n=15, rank=False, ascending=False):
     m, dims = prof["metric"], prof["dimensions"]
     d = dims[0]
     ratio = is_ratio_metric(m)
-    s = df.groupby(df[d].astype(str))[m].agg("mean" if ratio else "sum").sort_values(ascending=False)
+    s = df.groupby(df[d].astype(str))[m].agg("mean" if ratio else "sum").sort_values(ascending=ascending)
     total = None if ratio else s.sum()
     note = ""
     if len(s) > top_n:
-        note = f"Top {top_n} of {len(s)}"
+        note = f"{'Bottom' if ascending else 'Top'} {top_n} of {len(s)}"
         s = s.head(top_n)
+    if rank:
+        s.index = [f"#{i + 1}  {k}" for i, k in enumerate(s.index)]
     s = s[::-1]
 
     _style()
@@ -267,7 +269,7 @@ def create_charts(analysis_type: str, datasets: Dict[str, pd.DataFrame],
         if path:
             charts.append({"title": title, "path": path, "description": desc})
 
-    primary_id = next(iter(datasets))
+    primary_id = facts.get("dataset") if facts.get("dataset") in datasets else next(iter(datasets))
     df, prof = datasets[primary_id], profiles[primary_id]
     m = prof.get("metric")
 
@@ -279,6 +281,15 @@ def create_charts(analysis_type: str, datasets: Dict[str, pd.DataFrame],
             title = f"{nice(m)} trend by {nice(prof['time_col'])}"
             add(line_chart(df, prof, title, run_id, facts.get("partial_periods")), title,
                 "Metric over time (one line per member when a dimension is present).")
+
+        elif analysis_type == "rank" and prof["dimensions"]:
+            top_n = facts.get("top_n") or 10
+            asc = str(facts.get("order", "")).startswith("ascending")
+            everyone = top_n >= (facts.get("members_ranked") or 0)
+            title = (f"Ranking: {nice(m)} by {nice(prof['dimensions'][0])}" if everyone else
+                     f"{'Bottom' if asc else 'Top'} {top_n}: {nice(m)} by {nice(prof['dimensions'][0])}")
+            add(bar_chart(df, prof, title, run_id, top_n=top_n, rank=True, ascending=asc), title,
+                "Leaderboard with rank positions.")
 
         elif analysis_type == "anomaly":
             title = f"Anomaly detection: {nice(m)}"

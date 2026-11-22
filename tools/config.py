@@ -53,6 +53,9 @@ MAX_RESULT_ROWS = int(os.getenv("MAX_RESULT_ROWS", 5000))
 # Maximum number of SQL data queries the planner may request
 MAX_DATA_QUERIES = int(os.getenv("MAX_DATA_QUERIES", 3))
 
+# How many times the Analysis Agent may send the workflow back to Planning + SQL
+MAX_REPLANS = int(os.getenv("MAX_REPLANS", 2))
+
 # ----------------------------------------
 # Paths
 # ----------------------------------------

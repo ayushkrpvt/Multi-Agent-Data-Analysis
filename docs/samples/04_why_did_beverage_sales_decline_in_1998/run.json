@@ -1,6 +1,70 @@
 {
   "question": "Why did beverage sales decline in 1998?",
   "analysis_type": "root_cause",
+  "guardrail": {
+    "blocked": false
+  },
+  "replans": [],
+  "tool_calls": [
+    {
+      "agent": "Intent Agent",
+      "step": 1,
+      "tool": "submit_intent",
+      "args": "{\"filters\": [\"Category = Beverages\"], \"business_question\": \"Why did beverage sales decline in 1998?\", \"required_tables\": [\"orders\", \"order_details\", \"products\", \"categories\", \"customers\"], \"metric\": \"Sales\", \"time_period\": \"1997-1998\", \"time_granularity\": \"month\", \"dimensions\": [\"Month\", \"Product\", \"Customer\", \"Country\"], \"kpis\": [\"Sales\", \"Quantity\", \"Orders\"]}",
+      "result": "accepted"
+    },
+    {
+      "agent": "Planning Agent",
+      "step": 1,
+      "tool": "submit_plan",
+      "args": "{\"required_tables\": [\"orders\", \"order_details\", \"products\", \"categories\", \"customers\"], \"group_by\": [\"Month\", \"ProductName\", \"Country\"], \"objective\": \"Explain the change in Beverages sales in 1998 versus 1997 by product and country.\", \"required_kpis\": [\"Sales\", \"Quantity\", \"Orders\"], \"chart_suggestion\": \"line\", \"data_queries\": [{\"description\": \"Beverages category only, 1997-1998. columns: Month, P ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "SQL Agent",
+      "query_id": "primary",
+      "step": 1,
+      "tool": "submit_sql_query",
+      "args": "{\"sql\": \"SELECT \\n    strftime('%Y-%m', o.OrderDate) AS Month,\\n    p.ProductName,\\n    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales,\\n    SUM(od.Quantity) AS Quantity,\\n    COUNT(DISTINCT o.OrderID) AS Orders\\nFROM orders o\\nJOIN order_details od ON o.OrderID = od.OrderID\\nJOIN products p ON od.ProductID = p.ProductID\\nJOIN categories c ON p.CategoryID = c.CategoryID\\nWH ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "SQL Agent",
+      "query_id": "by_country",
+      "step": 1,
+      "tool": "submit_sql_query",
+      "args": "{\"tables_used\": [\"orders\", \"order_details\", \"products\", \"categories\", \"customers\"], \"explanation\": \"Beverages sales by month and country for 1997-1998\", \"sql\": \"SELECT \\n    strftime('%Y-%m', o.OrderDate) AS Month,\\n    c.Country,\\n    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales\\nFROM orders o\\nJOIN order_details od ON o.OrderID = od.OrderID\\nJOIN products p ON od.Produc ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 1,
+      "tool": "root_cause_analysis",
+      "args": "{}",
+      "result": "{\"drivers\": {\"primary\": {\"dimension\": \"ProductName\", \"metric\": \"Sales\", \"compared_periods\": [\"1997 (months 01-04)\", \"1998 (months 01-04)\"], \"like_for_like\": \"Like-for-like comparison of the same months (01, 02, 03, 04) in 1997 and 1998.\", \"partial_periods_involved\": [], \"total_before\": 45719.5, \"tot ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 2,
+      "tool": "trend_analysis",
+      "args": "{\"dataset_id\": \"primary\"}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Sales\", \"time_column\": \"Month\", \"periods\": 17, \"series\": {\"1997-01\": 24224.4, \"1997-02\": 3090.4, \"1997-03\": 11027.2, \"1997-04\": 7377.5, \"1997-05\": 15654.0, \"1997-06\": 3602.0, \"1997-07\": 8343.5, \"1997-08\": 6154.0, \"1997-09\": 6198.75, \"1997-10\": 9043.0, \"1997-11\": 403 ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 3,
+      "tool": "comparison_analysis",
+      "args": "{\"dataset_id\": \"primary\"}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Sales\", \"dimension\": \"ProductName\", \"members\": 12, \"total\": 232647.75, \"ranking\": [{\"rank\": 1, \"ProductName\": \"Cte de Blaye\", \"Sales\": 120472.2, \"share_pct\": 51.78}, {\"rank\": 2, \"ProductName\": \"Ipoh Coffee\", \"Sales\": 20074.4, \"share_pct\": 8.63}, {\"rank\": 3, \"Product ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 4,
+      "tool": "submit_analysis",
+      "args": "{\"caveats\": [\"Periods ['1998-05'] are only partially covered by the data (orders run to 1998-05-06). Comparisons for 1998 focus on equal periods Jan-Apr.\"], \"drivers\": [\"Germany, USA, and Brazil drove massive sales growth in early 1998, more than offsetting drops in Denmark and Canada.\", \"On a like-for-like basis (Jan-Apr), total beverage sales actually increased by 157.28% from 45,719.50 in 1997  ... (truncated)",
+      "result": "accepted"
+    }
+  ],
   "error": null,
   "sql_attempts": 2,
   "queries": [
@@ -8,49 +72,49 @@
     "by_country"
   ],
   "failed_queries": [],
-  "seconds": 44.8,
+  "seconds": 48.1,
   "trace": [
     {
       "agent": "Intent Agent",
-      "step": "understand question",
+      "step": "understand question + guardrails",
       "status": "ok",
-      "detail": "root_cause | metric=Sales | dims=['Month', 'Product'] | filters=['Category = Beverages'] | period=1997-1998",
-      "seconds": 7.15
+      "detail": "metric=Sales | dims=['Month', 'Product', 'Customer', 'Country'] | filters=['Category = Beverages'] | period=1997-1998",
+      "seconds": 5.49
     },
     {
       "agent": "Planning Agent",
       "step": "create execution plan",
       "status": "ok",
-      "detail": "4 steps, 2 data queries: ['primary', 'by_country']",
-      "seconds": 7.78
+      "detail": "3 steps, 2 data queries: ['primary', 'by_country']",
+      "seconds": 5.02
     },
     {
       "agent": "SQL Agent",
       "step": "generate SQL",
       "status": "ok",
       "detail": "query 'primary' attempt 1",
-      "seconds": 2.01
+      "seconds": 2.02
     },
     {
       "agent": "SQL Agent",
       "step": "validate SQL",
       "status": "ok",
       "detail": "passed",
-      "seconds": 0.02
+      "seconds": 0.01
     },
     {
       "agent": "SQL Agent",
       "step": "execute SQL",
       "status": "ok",
       "detail": "'primary' -> 154 rows, columns ['Month', 'ProductName', 'Sales', 'Quantity', 'Orders']",
-      "seconds": 0.02
+      "seconds": 0.01
     },
     {
       "agent": "SQL Agent",
       "step": "generate SQL",
       "status": "ok",
       "detail": "query 'by_country' attempt 1",
-      "seconds": 8.35
+      "seconds": 5.66
     },
     {
       "agent": "SQL Agent",
@@ -64,28 +128,21 @@
       "step": "execute SQL",
       "status": "ok",
       "detail": "'by_country' -> 161 rows, columns ['Month', 'Country', 'Sales']",
-      "seconds": 0.02
-    },
-    {
-      "agent": "Analysis Agent",
-      "step": "profile data & choose analysis",
-      "status": "ok",
-      "detail": "requested=root_cause, route=root_cause; primary: time=Month, metric=Sales, dims=['ProductName']; by_country: time=Month, metric=Sales, dims=['Country']",
       "seconds": 0.01
     },
     {
       "agent": "Analysis Agent",
-      "step": "root cause analysis",
+      "step": "choose analysis via tool calling",
       "status": "ok",
-      "detail": "drivers analysed: ['primary', 'by_country']",
-      "seconds": 9.64
+      "detail": "analysis_type=root_cause; tools used: ['root_cause_analysis', 'trend_analysis', 'comparison_analysis']",
+      "seconds": 25.31
     },
     {
       "agent": "Reporting Agent",
       "step": "charts + executive report",
       "status": "ok",
-      "detail": "3 charts, 4 recommendations -> 20261118_234419_why_did_beverage_sales_decline_7485.md",
-      "seconds": 9.76
+      "detail": "3 charts, 3 recommendations -> 20261123_001917_why_did_beverage_sales_decline_2465.md",
+      "seconds": 4.57
     }
   ]
 }

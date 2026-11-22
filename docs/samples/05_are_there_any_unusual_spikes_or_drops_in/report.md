@@ -1,19 +1,20 @@
-# Monthly Sales Anomaly Analysis
+# Monthly Sales Anomaly Analysis Executive Report
 
 **Question:** Are there any unusual spikes or drops in monthly sales?  
-**Analysis type:** anomaly  
-**Generated:** 2026-11-18 23:45 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
+**Analysis type (chosen by Analysis Agent):** anomaly  
+**Generated:** 2026-11-23 00:20 · **LLM:** Gemini (gemini-3.5-flash-lite) · **Dataset:** Northwind
 
 ## Business Summary
 
-Yes, an unusual sales spike occurred in April 1998, reaching a high of $134,630.56, which deviates significantly from the baseline mean of $60,661.81. While May 1998 displays a low sales figure, this is due to it being a partial period containing data only through May 6, rather than an actual business decline. Overall, sales experienced exceptional growth during early 1998 leading up to the April peak.
+Anomaly detection identified one significant unusual sales spike in April 1998, reaching $134,630.56, which is 121.94% above the baseline mean of $60,661.81. No other months triggered anomaly thresholds across the analyzed 23 periods. May 1998 represents a partial period containing data up to May 6 and was excluded from baseline calculations to prevent misleading decline interpretations.
 
 ## Key Findings
 
-- Peak monthly sales anomaly in April 1998 reached $134,630.56.
-- The baseline monthly sales mean across the dataset is $60,661.81.
-- April 1998 recorded a z-score deviation of 2.64.
-- April 1998 sales deviated by 121.94% above the baseline mean.
+- April 1998 sales reached $134,630.56, representing a 121.94% increase above the baseline mean.
+- The baseline mean monthly sales across the dataset is $60,661.81 with a standard deviation of $28,030.63.
+- April 1998 achieved a z-score of 2.64, placing it well outside the upper IQR fence of $111,742.19.
+- May 1998 contains partial data of $19,898.66 through May 6 and was excluded from baseline comparisons.
+- The dataset spans 23 monthly data points from July 1996 through early May 1998.
 
 ## Visualizations
 
@@ -25,24 +26,27 @@ _Values outside the normal range are highlighted._
 
 ## Root Cause Analysis
 
-- Unusually high transaction volume or large individual orders occurred in April 1998, driving the exceptional growth in early 1998.
-- May 1998 data is restricted to the period between 1996-07-04 and 1998-05-06, making it a partial period that was excluded from baseline calculations.
+- The April 1998 sales surge to $134,630.56 points to a major one-time sales event, promotional push, or large bulk customer order during that specific month.
+- Data coverage limitations restrict the analysis window from July 4, 1996, to May 6, 1998, meaning 1996 and 1998 represent partial operating years.
+- May 1998 data is restricted to early-month orders ending May 6, accounting for the lower recorded total of $19,898.66 which should not be interpreted as a sudden market contraction.
 
 ## Recommendations
 
 | Priority | Action | Rationale |
 |---|---|---|
-| High | Investigate the specific customers, orders, and promotional activities that drove the April 1998 sales peak of $134,630.56. | Understanding the drivers behind the April 1998 anomaly helps replicate successful sales strategies. |
-| Medium | Ensure future month-over-month sales performance tracking properly accounts for partial periods like May 1998 to avoid misinterpreting incomplete data as a decline. | May 1998 contains data only up to May 6, which falsely appears as a drop. |
+| High | Investigate the specific customer accounts and product categories responsible for the April 1998 order spike of $134,630.56. | Understanding the drivers behind the z-score 2.64 anomaly helps replicate successful large-scale sales events or bulk purchasing patterns. |
+| Medium | Complete the remaining May 1998 data collection before evaluating month-over-month performance trends for Q2. | May 1998 is currently a partial period ($19,898.66 through May 6) and was excluded from baseline calculations to avoid false conclusions of a decline. |
+| High | Analyze the sustained sales elevation observed throughout early 1998, where monthly sales consistently exceeded $100,000 (Jan to Apr). | April sales reached $134,630.56, and preceding months like January ($100,854.72), February ($104,561.95), and March ($109,825.45) indicate a broader structural growth trend above the $60,661.81 baseline mean. |
 
 ## Data Caveats
 
-- 1998-05 is a partial period (incomplete data, not a real decline) and was excluded from the baseline calculations.
+- 1998-05 is a partial period and was excluded from the baseline calculations.
 
 ## Suggested Next Questions
 
-- Which specific products or customer accounts contributed the most to the April 1998 sales spike?
-- What marketing campaigns or sales initiatives were active in early 1998 that resulted in consecutive months of high sales?
+- Which specific customers or orders drove the record $134,630.56 sales figure in April 1998?
+- What factors contributed to the sustained high sales figures exceeding $100,000 in January, February, March, and April of 1998 compared to earlier periods in 1996 and 1997?
+- How do complete May sales figures compare once the full month of data is made available?
 
 ---
 ## Appendix: How This Answer Was Produced
@@ -62,7 +66,6 @@ _Values outside the normal range are highlighted._
   "filters": [],
   "time_period": "All",
   "time_granularity": "month",
-  "analysis_type": "anomaly",
   "required_tables": [
     "orders",
     "order_details"
@@ -71,22 +74,21 @@ _Values outside the normal range are highlighted._
 ```
 
 ### 2. Execution Plan (Planning Agent)
-**Objective:** Identify any unusual spikes or drops in monthly sales across the entire dataset timeline
+**Objective:** Identify unusual spikes or drops in monthly sales and order volume across the Northwind database timeline.
 
-1. Calculate monthly sales and order count across the entire dataset timeline
-2. Establish baseline monthly sales performance and volatility
-3. Detect outliers or values significantly deviating from the baseline
-4. Highlight anomalous months and summarize findings
+1. Retrieve monthly sales and order count across all available months
+2. Identify any significant spikes or drops in the timeline
+3. Summarize findings highlighting anomaly months
 
 ### 3. Data Retrieval (SQL Agent)
 
-**primary** - Monthly Sales and Orders for anomaly detection (23 rows, 1 attempt(s))
+**primary** - Retrieve total monthly sales and order count for all months in the database (23 rows, 1 attempt(s))
 
 ```sql
 SELECT 
-  strftime('%Y-%m', o.OrderDate) AS Month,
-  ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales,
-  COUNT(DISTINCT o.OrderID) AS Orders
+    strftime('%Y-%m', o.OrderDate) AS Month,
+    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales,
+    COUNT(DISTINCT o.OrderID) AS Orders
 FROM orders o
 JOIN order_details od ON o.OrderID = od.OrderID
 GROUP BY strftime('%Y-%m', o.OrderDate)
@@ -106,14 +108,23 @@ ORDER BY Month ASC
 | 1997-03 | 39,979.90 |       30 |
 | 1997-04 | 55,699.39 |       31 |
 
-### 4. Agent Trace
+### 5. Native Tool Calls
+
+| # | Agent | Tool | Arguments |
+|---|---|---|---|
+| 1 | Intent Agent | `submit_intent` | {"time_granularity": "month", "kpis": ["Sales", "Orders"], "filters": [], "time_period": "All", "metric": "Sales", "busi |
+| 2 | Planning Agent | `submit_plan` | {"data_queries": [{"purpose": "Retrieve total monthly sales and order count for all months in the database", "id": "prim |
+| 3 | SQL Agent | `submit_sql_query` | {"tables_used": ["orders", "order_details"], "sql": "SELECT \n    strftime('%Y-%m', o.OrderDate) AS Month,\n    ROUND(SU |
+| 4 | Analysis Agent | `anomaly_detection` | {"dataset_id": "primary", "z_threshold": 2} |
+| 5 | Analysis Agent | `submit_analysis` | {"summary": "Anomaly detection identified a significant unusual spike in monthly sales for April 1998, reaching $134,630 |
+
+### 6. Agent Trace
 
 | # | Agent | Step | Status | Time (s) |
 |---|---|---|---|---|
-| 1 | Intent Agent | understand question | ok | 7.22 |
-| 2 | Planning Agent | create execution plan | ok | 1.2 |
-| 3 | SQL Agent | generate SQL | ok | 2.28 |
+| 1 | Intent Agent | understand question + guardrails | ok | 2.02 |
+| 2 | Planning Agent | create execution plan | ok | 6.71 |
+| 3 | SQL Agent | generate SQL | ok | 1.46 |
 | 4 | SQL Agent | validate SQL | ok | 0.01 |
-| 5 | SQL Agent | execute SQL | ok | 0.01 |
-| 6 | Analysis Agent | profile data & choose analysis | ok | 0.0 |
-| 7 | Analysis Agent | anomaly detection | ok | 7.58 |
+| 5 | SQL Agent | execute SQL | ok | 0.02 |
+| 6 | Analysis Agent | choose analysis via tool calling | ok | 6.94 |

@@ -37,7 +37,9 @@ def traced(agent: str, step: str = ""):
             start = time.time()
             try:
                 update = fn(state) or {}
-                status = "error" if update.get("error") else "ok"
+                status = ("error" if update.get("error")
+                          else "blocked" if (update.get("guardrail") or {}).get("blocked")
+                          else "ok")
             except Exception as e:
                 traceback.print_exc()
                 update = {"error": f"{agent} failed: {friendly_error(e)}"}

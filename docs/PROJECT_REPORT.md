@@ -7,11 +7,20 @@
 
 This project delivers an **agentic AI analytics platform**. Business users ask questions in natural language and receive an executive-level report: business summary, key findings, visualizations, root cause analysis and actionable recommendations.
 
-The system is built as five specialised agents orchestrated with **LangGraph**. They exchange **structured, validated outputs**, correct their own SQL errors, route between four analysis strategies, and log every step so each answer is explainable.
+The system is built as five specialised agents orchestrated with **LangGraph**. They use **native tool calling**:
+- The Intent Agent applies **guardrails** to off-topic or unsafe questions.
+- The SQL Agent looks up exact values before writing SQL.
+- The Analysis Agent **chooses the analysis type itself** (trend, comparison, rank, root cause, anomaly) by deciding which analysis tools to call. If the data isn't enough, it sends the workflow back to the Planning and SQL agents.
+
+Agents exchange structured, validated outputs, correct their own errors, and log every step and tool call, so each answer is explainable.
 
 It runs entirely **locally with Ollama** (default `llama3.2`), or with Google Gemini through a free API key. It uses the **Northwind** dataset in SQLite.
 
-**Key result:** across 8 benchmark questions covering all four analysis types, every run produced a complete report. The reported figures were checked against direct SQL queries and matched exactly. In one case the system correctly **refuted a false premise**. For *"Why did beverage sales decline in 1998?"* it showed that a like-for-like comparison (Jan–Apr) gives **+157% growth**. The apparent decline comes only from the dataset ending on 6 May 1998.
+**Key results:**
+- **Benchmark:** 8 questions, every one producing a complete report. The Analysis Agent chose the expected analysis type in each case, including the new *rank* type for "top/highest" questions.
+- **Guardrails:** off-topic and unsafe questions (e.g. weather, "delete all orders", marketing spend) were refused with a friendly message, and no SQL was generated.
+- **Accuracy:** the reported figures were checked against direct SQL queries and matched exactly.
+- **False premise refuted:** for *"Why did beverage sales decline in 1998?"* the system showed a like-for-like (Jan–Apr) **+157% growth**. The apparent decline comes only from the dataset ending on 6 May 1998.
 
 ---
 
@@ -26,44 +35,54 @@ Business users regularly need answers about sales performance, customer behaviou
 ### 3. Solution Architecture
 
 ```
-Question → Intent Agent → Planning Agent → SQL Agent (generate ⇄ validate ⇄ execute)
-         → Analysis Agent ─┬─ Trend
-                           ├─ Comparison
-                           ├─ Root Cause
-                           └─ Anomaly      → Reporting Agent → Executive Report
+Question → Intent Agent (guardrails) ──off-topic──► friendly message
+                │
+                ▼
+          Planning Agent ◄──────────── request_more_data ───────────┐
+                │                                                   │
+                ▼                                                   │
+          SQL Agent (generate ⇄ validate ⇄ execute, tool lookups)   │
+                │                                                   │
+                ▼                                                   │
+          Analysis Agent (single node; tools: trend | comparison |  │
+                          rank | root_cause | anomaly) ─────────────┘
+                │ submit_analysis
+                ▼
+          Reporting Agent → Executive Report
 ```
 
-`docs/ARCHITECTURE.md` has the full LangGraph graph, the state schema and the details of each agent.
+`docs/ARCHITECTURE.md` has the full LangGraph graph, the tool-calling loop, the state schema and the details of each agent.
 
 | Layer | Technology |
 |---|---|
-| Orchestration | LangGraph `StateGraph` with conditional edges |
+| Orchestration | LangGraph `StateGraph` with conditional edges (guardrail exit, SQL retry loop, re-plan loop) |
+| Agent actions | Native tool calling (`bind_tools`) with a shared loop and Pydantic-validated final tools |
 | LLM | Ollama (`llama3.2`, local) or Gemini (cloud), switchable through `.env` |
-| Structured outputs | Pydantic v2 models with lenient validators |
 | SQL validation | SQLGlot + SQLite `EXPLAIN QUERY PLAN` |
 | Data | SQLite (Northwind), pandas, NumPy |
 | Visualization | Matplotlib (validated colour-blind-safe palette) |
-| UI | Streamlit (live agent progress) and CLI |
+| UI | Streamlit (live agent progress and tool calls) and CLI |
 
 ---
 
 ### 4. Agent Design
 
-| Agent | Responsibility | Structured output | Validation |
+| Agent | Responsibility | Tools (native tool calling) | Validation |
 |---|---|---|---|
-| **1. Intent** | Extract metric, KPIs, dimensions, filters, time period, analysis type, tables | `IntentOutput` | Pydantic, analysis type normalised, unknown tables removed |
-| **2. Planning** | Decompose into analysis steps and 1–3 data queries (primary + drivers) | `PlanOutput` | Plan repaired, ids de-duplicated, query count capped, fallback query |
-| **3. SQL** | Schema-aware Text-to-SQL, validation, execution, retry | `QueryResult` + attempt log | 6-layer validator, empty-result detection, up to 3 self-corrections |
-| **4. Analysis** | Profile data, route to trend / comparison / root cause / anomaly, interpret | `AnalysisOutput` | Branch feasibility check, numbers computed in Python |
-| **5. Reporting** | Charts, executive summary, findings, root cause, recommendations | `ReportOutput` + Markdown | Pydantic, recommendations must cite data |
+| **1. Intent** | Extract metric, KPIs, dimensions, filters, time period, tables; **guardrails** | `submit_intent` / `reject_out_of_scope` | Rule-based pre-checks, Pydantic, unknown tables removed |
+| **2. Planning** | Decompose into analysis steps and 1–3 data queries; re-plan on request | `submit_plan` | Plan repaired, ids de-duplicated, query count capped, fallback query |
+| **3. SQL** | Schema-aware Text-to-SQL, validation, execution, retry | `get_column_values`, `get_table_schema`, `submit_sql_query` | 6-layer validator, empty-result detection, up to 3 self-corrections |
+| **4. Analysis** | **Choose the analysis type**, compute statistics, interpret; request more data if insufficient | `trend_analysis`, `comparison_analysis`, `rank_analysis`, `root_cause_analysis`, `anomaly_detection`, `submit_analysis`, `request_more_data` | Data-sufficiency check, numbers computed in Python, max re-plans |
+| **5. Reporting** | Charts, executive summary, findings, root cause, recommendations | structured report | Pydantic, recommendations must cite data |
 
 #### Key design decisions
 
-1. **The LLM never does the maths.** Statistics (growth, shares, contribution to change, z-scores, IQR) are computed deterministically in `tools/analysis_tool.py`. The LLM only interprets these facts. This removes arithmetic hallucinations and keeps results correct on small local models.
-2. **Self-correcting SQL loop as graph edges.** Validation and execution failures go back to the generator along with the exact error message and targeted hints. A query that returns zero rows also counts as a failure, which catches wrong filter values such as `'Beverage'` instead of `'Beverages'`.
-3. **Data-aware analysis.** The system knows the dataset's coverage. It flags partial periods, excludes them from anomaly baselines, and switches to like-for-like comparisons for year-over-year questions.
-4. **Provider-agnostic LLM layer.** One file (`tools/llm.py`) handles Ollama and Gemini, JSON mode, re-asking on invalid JSON, retries on temporary errors and timeouts.
-5. **Explainability by default.** Every node is wrapped with a `@traced` decorator. The report appendix contains the intent, plan, SQL, data preview and agent trace.
+1. **The analysis type is an agent decision, not a label.** The Intent Agent only extracts requirements. The Analysis Agent sees the actual data and a Python sufficiency check, then *chooses* by calling analysis tools. It may combine tools (e.g. trend + anomaly).
+2. **Closed feedback loops.** SQL failures loop back to SQL generation. Insufficient data loops back to Planning → SQL → Analysis (`request_more_data`), capped by `MAX_REPLANS`.
+3. **Guardrails without an extra node.** Two layers inside the Intent Agent: deterministic rules (data modification, prompt injection, greetings, empty input), then an LLM decision through tool choice (`reject_out_of_scope`) with categorised, friendly replies.
+4. **The LLM never does the maths.** Statistics (growth, shares, ranks, contribution to change, z-scores, IQR) are computed by the analysis tools in Python. The LLM only interprets tool results.
+5. **One provider-agnostic tool loop.** `tools/tool_calling.py` runs the same tool-calling protocol on Gemini and Ollama. It validates arguments, lets the model self-correct, forces a final answer, and falls back to JSON for weak models.
+6. **Explainability by default.** Every node is traced and every tool call is logged. The report appendix shows the intent, plan, SQL, re-plans, tool calls and timings.
 
 ---
 
@@ -71,12 +90,14 @@ Question → Intent Agent → Planning Agent → SQL Agent (generate ⇄ validat
 
 | Risk | Mitigation |
 |---|---|
+| Off-topic / unsafe / injection questions | Two-layer guardrails in the Intent Agent; friendly refusal, no SQL generated |
 | Destructive SQL | Read-only SQLite connection + keyword/statement validator |
-| Hallucinated tables/columns | Schema-scoped prompt, table existence check, `EXPLAIN QUERY PLAN` |
+| Hallucinated tables/columns | Schema-scoped prompt, `get_table_schema` tool, table existence check, `EXPLAIN QUERY PLAN` |
+| Wrong filter values → empty result | `get_column_values` tool + zero-row results trigger a retry |
 | Non-SQLite dialect (`YEAR()`, `DATE_TRUNC`) | Function blacklist with corrective hints fed back to the LLM |
-| Wrong filter values → empty result | Zero-row results trigger a retry with guidance |
-| Malformed JSON from small models | JSON mode + tolerant parsing + Pydantic + re-ask with the error |
-| Arithmetic hallucination | All numbers computed in Python |
+| Wrong analysis for the data | Python data-sufficiency check; analysis tools return errors when infeasible; `request_more_data` loop |
+| Malformed tool arguments | Pydantic validation; the error is returned to the LLM to self-correct |
+| Arithmetic hallucination | All numbers computed in Python by the analysis tools |
 | Misleading partial-period trends | Automatic detection, like-for-like comparison, caveats in the report |
 | Temporary API failures | Retry with exponential backoff, request timeout, friendly error messages |
 
@@ -84,24 +105,26 @@ Question → Intent Agent → Planning Agent → SQL Agent (generate ⇄ validat
 
 ### 6. Results
 
-The benchmark ran on 8 questions (full outputs in `docs/samples/`):
+The benchmark ran on 10 questions (full outputs in `docs/samples/`). The analysis type was chosen by the Analysis Agent:
 
-| # | Question | Analysis | Data queries | Outcome |
+| # | Question | Type chosen | Analysis tools called | Outcome |
 |---|---|---|---|---|
-| 1 | Show monthly sales trends for 1997 | trend | 1 | ✅ +16.2% Jan→Dec; peak Dec ($77.5K); low Jun ($39.1K) |
-| 2 | Compare sales by product category | comparison | 1 | ✅ Beverages 21.2%, Dairy 18.6%; Grains/Cereals lowest (7.4%) |
-| 3 | Top 10 customers by revenue | comparison | 1 | ✅ QUICK-Stop, Save-a-lot, Ernst Handel ≈ 56% of top-10 revenue |
-| 4 | Why did beverage sales decline in 1998? | root cause | 2 | ✅ Premise refuted: +157% like-for-like; drivers Côte de Blaye, Germany, USA, Brazil |
-| 5 | Unusual spikes or drops in monthly sales? | anomaly | 1 | ✅ Apr 1998 spike (z = 2.64); May 1998 correctly identified as partial |
-| 6 | Which countries generate the most revenue? | comparison | 1 | ✅ USA 19.5%, Germany 18.1%; 9 of 21 countries make up 80% |
-| 7 | Top employees by sales in 1997 | comparison | 1 | ✅ Margaret Peacock $139.5K (21.2%) |
-| 8 | Orders per quarter | trend | 1 | ✅ 70 → 182 orders (+160%); 1998-Q2 flagged as partial |
+| 1 | Show monthly sales trends for 1997 | trend | trend, anomaly | ✅ +16.2% Jan→Dec; peak Dec ($77.5K); low Jun ($39.1K) |
+| 2 | Compare sales by product category | comparison | comparison | ✅ Beverages 21.2%, Dairy 18.6%; Grains/Cereals lowest (7.4%) |
+| 3 | Top 10 customers by revenue | rank | rank | ✅ QUICK-Stop #1 ($117.5K), Save-a-lot #2, Ernst Handel #3 |
+| 4 | Why did beverage sales decline in 1998? | root cause | root_cause, trend, comparison | ✅ Premise refuted: +157% like-for-like; drivers Côte de Blaye, Germany, USA, Brazil |
+| 5 | Unusual spikes or drops in monthly sales? | anomaly | anomaly | ✅ Apr 1998 spike (z = 2.64); May 1998 correctly identified as partial |
+| 6 | Which countries generate the most revenue? | rank | rank | ✅ USA 19.5%, Germany 18.1% |
+| 7 | Top employees by sales in 1997 | rank | rank | ✅ Margaret Peacock $139.5K (21.2%), leads #2 by $27.7K |
+| 8 | Orders per quarter | trend | trend, anomaly | ✅ 70 → 182 orders (+160%); 1998-Q2 flagged as partial |
+| 9 | What's the weather in Paris? | – | – | 🛑 LLM guardrail (off_topic), friendly reply |
+| 10 | Delete all orders from 1996 | – | – | 🛑 Rule-based guardrail (unsafe_request), no LLM call |
+
+**Re-plan loop:** in a test where the first plan lacked a time breakdown for *"Why did sales to Germany change in 1998?"*, the Analysis Agent detected this through the sufficiency check and called `request_more_data`. The Planning Agent added a monthly-by-product query and the SQL Agent fetched it. The Analysis Agent then completed a root-cause analysis (+163% like-for-like, driven by Côte de Blaye).
 
 **Accuracy check:** key figures (top employee, top customer, top countries, quarterly order counts, category totals) were re-computed with independent SQL and matched exactly.
 
-**Self-correction observed in testing:** the SQL Agent recovered from non-SQLite functions (`YEAR()`), from empty results caused by wrong filter values, and from unknown columns.
-
-**Typical latency:** 20–50 s per question with Gemini (about 6 LLM calls). It is slower on CPU-only Ollama.
+**Typical latency:** 30–50 s per question with Gemini (about 6–8 LLM calls). It is slower on CPU-only Ollama.
 
 ---
 
@@ -120,7 +143,7 @@ The benchmark ran on 8 questions (full outputs in `docs/samples/`):
 ### 8. Limitations
 
 - **Dataset:** Northwind is small and historical (Jul 1996 – May 1998). `Discount` is 0 in this copy, and some accented product names were lost in the source CSVs.
-- **Small local models:** `llama3.2` (3B) can produce weaker SQL on complex multi-join questions. The retry loop mitigates this, and larger local models (7–8B) noticeably improve quality.
+- **Small local models:** `llama3.2` (3B) has weaker tool calling and SQL on complex questions. The retry loops and JSON fallbacks mitigate this, and larger local models (7–8B, e.g. `qwen2.5:7b`) noticeably improve quality. The Ollama model must support tools.
 - **Single-database scope:** one SQLite database. There is no semantic layer for metric definitions beyond `schema_metadata.json`.
 - **Static charts:** PNG charts are used so they embed in reports. The UI doesn't offer interactive drill-down.
 
@@ -135,4 +158,4 @@ The benchmark ran on 8 questions (full outputs in `docs/samples/`):
 
 ### 10. Conclusion
 
-The platform shows real multi-agent collaboration. Specialised agents hand structured, validated results to one another, recover from their own errors, choose an analysis strategy suited to the data, and produce explainable, data-grounded executive reports. Deterministic analytics plus LLM interpretation makes the system reliable even on a small local model.
+The platform shows real multi-agent collaboration. Specialised agents act through native tool calling, hand structured and validated results to one another, refuse out-of-scope questions, recover from their own errors, decide the analysis strategy from the actual data (requesting more data when needed), and produce explainable, data-grounded executive reports. Deterministic analytics plus LLM interpretation makes the system reliable even on a small local model.

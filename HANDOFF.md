@@ -53,6 +53,19 @@ The project was developed and tested with **Google Gemini** because Ollama wasn'
 
 All of this is handled automatically in `tools/llm.py`. It is the only file that knows about providers.
 
+## Tool calling and Ollama models
+
+The agents use **native tool calling** (`bind_tools`), so the Ollama model must support tools:
+
+| Model | Tools? | Notes |
+|---|---|---|
+| `llama3.2` (default) | ✅ | fast, basic quality |
+| `llama3.1:8b` | ✅ | better |
+| `qwen2.5:7b` | ✅ | best for SQL / tool calling on a laptop |
+| `gemma3` / `gemma2` | ❌ | not supported, error "does not support tools" |
+
+If a small model answers in plain text instead of calling a tool, the code falls back to JSON mode automatically. The run continues, but quality may drop.
+
 ## Tips for best results locally
 
 - **Better model = better SQL and reports.** `llama3.2` is a 3B model and is fast but basic. If your laptop has 16 GB+ RAM, try one of these, then set `OLLAMA_MODEL` to its name:
@@ -60,7 +73,7 @@ All of this is handled automatically in `tools/llm.py`. It is the only file that
   ollama pull qwen2.5:7b        # strong at SQL and JSON
   ollama pull llama3.1:8b
   ```
-- **Slow?** Each question makes about 6 LLM calls, which can take 1–3 minutes on CPU. If a call times out, raise `LLM_TIMEOUT=600` in `.env`.
+- **Slow?** Each question makes about 6–8 LLM calls, which can take 1–3 minutes on CPU. If a call times out, raise `LLM_TIMEOUT=600` in `.env`.
 - **If SQL keeps failing** on complex questions with `llama3.2`, raise `MAX_SQL_RETRIES=5` or use a bigger model.
 - **Context size** is set to 8192 tokens (`num_ctx`) in `tools/llm.py`, enough for the schema plus data.
 

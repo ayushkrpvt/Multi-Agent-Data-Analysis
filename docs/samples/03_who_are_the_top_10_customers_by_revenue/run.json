@@ -1,69 +1,104 @@
 {
   "question": "Who are the top 10 customers by revenue?",
-  "analysis_type": "comparison",
+  "analysis_type": "rank",
+  "guardrail": {
+    "blocked": false
+  },
+  "replans": [],
+  "tool_calls": [
+    {
+      "agent": "Intent Agent",
+      "step": 1,
+      "tool": "submit_intent",
+      "args": "{\"dimensions\": [\"Customer\"], \"metric\": \"Sales\", \"required_tables\": [\"customers\", \"orders\", \"order_details\"], \"filters\": [], \"time_granularity\": \"none\", \"kpis\": [\"Sales\"], \"business_question\": \"Who are the top 10 customers by revenue?\", \"time_period\": \"All\"}",
+      "result": "accepted"
+    },
+    {
+      "agent": "Planning Agent",
+      "step": 1,
+      "tool": "submit_plan",
+      "args": "{\"required_tables\": [\"customers\", \"orders\", \"order_details\"], \"analysis_steps\": [\"Aggregate total revenue (Sales) per customer across all orders\", \"Rank customers in descending order of revenue\", \"Limit the results to the top 10 customers\"], \"required_kpis\": [\"Sales\"], \"objective\": \"Identify the top 10 customers by total revenue.\", \"chart_suggestion\": \"bar\", \"group_by\": [\"CompanyName\"], \"data_quer ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "SQL Agent",
+      "query_id": "primary",
+      "step": 1,
+      "tool": "submit_sql_query",
+      "args": "{\"sql\": \"SELECT \\n    c.CompanyName, \\n    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales\\nFROM customers c\\nJOIN orders o ON c.CustomerID = o.CustomerID\\nJOIN order_details od ON o.OrderID = od.OrderID\\nGROUP BY c.CustomerID, c.CompanyName\\nORDER BY Sales DESC\\nLIMIT 10;\", \"tables_used\": [\"customers\", \"orders\", \"order_details\"], \"explanation\": \"Top 10 customers by total sa ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 1,
+      "tool": "rank_analysis",
+      "args": "{\"ascending\": false, \"top_n\": 10, \"dataset_id\": \"primary\"}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Sales\", \"dimension\": \"CompanyName\", \"order\": \"descending (top first)\", \"members_ranked\": 10, \"top_n\": 10, \"leaderboard\": [{\"rank\": 1, \"CompanyName\": \"QUICK-Stop\", \"Sales\": 117483.39, \"share_pct\": 19.05, \"cumulative_share_pct\": 19.05, \"gap_to_next\": 1810.0, \"gap_to_n ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 2,
+      "tool": "submit_analysis",
+      "args": "{\"summary\": \"The top customer by revenue is QUICK-Stop with $117,483.39, followed closely by Save-a-lot Markets with $115,673.39 and Ernst Handel with $113,236.68. Together, the top 3 customers represent over 56% of the total revenue among the top 10 customers.\", \"insights\": [{\"insight\": \"QUICK-Stop leads customer revenue at $117,483.39, closely followed by Save-a-lot Markets at $115,673.39.\", \"bu ... (truncated)",
+      "result": "accepted"
+    }
+  ],
   "error": null,
   "sql_attempts": 1,
   "queries": [
     "primary"
   ],
   "failed_queries": [],
-  "seconds": 46.9,
+  "seconds": 29.2,
   "trace": [
     {
       "agent": "Intent Agent",
-      "step": "understand question",
+      "step": "understand question + guardrails",
       "status": "ok",
-      "detail": "comparison | metric=Sales | dims=['Customer'] | filters=[] | period=All",
-      "seconds": 17.87
+      "detail": "metric=Sales | dims=['Customer'] | filters=[] | period=All",
+      "seconds": 1.42
     },
     {
       "agent": "Planning Agent",
       "step": "create execution plan",
       "status": "ok",
       "detail": "3 steps, 1 data queries: ['primary']",
-      "seconds": 15.64
+      "seconds": 5.4
     },
     {
       "agent": "SQL Agent",
       "step": "generate SQL",
       "status": "ok",
       "detail": "query 'primary' attempt 1",
-      "seconds": 1.6
+      "seconds": 4.35
     },
     {
       "agent": "SQL Agent",
       "step": "validate SQL",
       "status": "ok",
       "detail": "passed",
-      "seconds": 0.02
+      "seconds": 0.01
     },
     {
       "agent": "SQL Agent",
       "step": "execute SQL",
       "status": "ok",
-      "detail": "'primary' -> 10 rows, columns ['Customer', 'Sales']",
-      "seconds": 0.05
+      "detail": "'primary' -> 10 rows, columns ['CompanyName', 'Sales']",
+      "seconds": 0.01
     },
     {
       "agent": "Analysis Agent",
-      "step": "profile data & choose analysis",
+      "step": "choose analysis via tool calling",
       "status": "ok",
-      "detail": "requested=comparison, route=comparison; primary: time=None, metric=Sales, dims=['Customer']",
-      "seconds": 0.02
-    },
-    {
-      "agent": "Analysis Agent",
-      "step": "comparison analysis",
-      "status": "ok",
-      "detail": "top={'rank': 1, 'Customer': 'QUICK-Stop', 'Sales': 117483.39, 'share_pct': 19.05}",
-      "seconds": 3.07
+      "detail": "analysis_type=rank; tools used: ['rank_analysis']",
+      "seconds": 8.22
     },
     {
       "agent": "Reporting Agent",
       "step": "charts + executive report",
       "status": "ok",
-      "detail": "1 charts, 3 recommendations -> 20261118_234329_who_are_the_top_10_customers_b_deb4.md",
-      "seconds": 8.62
+      "detail": "1 charts, 3 recommendations -> 20261123_001846_who_are_the_top_10_customers_b_9061.md",
+      "seconds": 9.78
     }
   ]
 }

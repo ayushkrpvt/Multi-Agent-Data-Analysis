@@ -1,34 +1,76 @@
 {
   "question": "Are there any unusual spikes or drops in monthly sales?",
   "analysis_type": "anomaly",
+  "guardrail": {
+    "blocked": false
+  },
+  "replans": [],
+  "tool_calls": [
+    {
+      "agent": "Intent Agent",
+      "step": 1,
+      "tool": "submit_intent",
+      "args": "{\"time_granularity\": \"month\", \"kpis\": [\"Sales\", \"Orders\"], \"filters\": [], \"time_period\": \"All\", \"metric\": \"Sales\", \"business_question\": \"Are there any unusual spikes or drops in monthly sales?\", \"dimensions\": [\"Month\"], \"required_tables\": [\"orders\", \"order_details\"]}",
+      "result": "accepted"
+    },
+    {
+      "agent": "Planning Agent",
+      "step": 1,
+      "tool": "submit_plan",
+      "args": "{\"data_queries\": [{\"purpose\": \"Retrieve total monthly sales and order count for all months in the database\", \"id\": \"primary\", \"description\": \"columns: Month, Sales, Orders\"}], \"chart_suggestion\": \"line\", \"group_by\": [\"Month\"], \"objective\": \"Identify unusual spikes or drops in monthly sales and order volume across the Northwind database timeline.\", \"required_tables\": [\"orders\", \"order_details\"], \"a ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "SQL Agent",
+      "query_id": "primary",
+      "step": 1,
+      "tool": "submit_sql_query",
+      "args": "{\"tables_used\": [\"orders\", \"order_details\"], \"sql\": \"SELECT \\n    strftime('%Y-%m', o.OrderDate) AS Month,\\n    ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 2) AS Sales,\\n    COUNT(DISTINCT o.OrderID) AS Orders\\nFROM orders o\\nJOIN order_details od ON o.OrderID = od.OrderID\\nGROUP BY strftime('%Y-%m', o.OrderDate)\\nORDER BY Month ASC;\", \"explanation\": \"Retrieve total monthly sales an ... (truncated)",
+      "result": "accepted"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 1,
+      "tool": "anomaly_detection",
+      "args": "{\"dataset_id\": \"primary\", \"z_threshold\": 2}",
+      "result": "{\"dataset\": \"primary\", \"metric\": \"Sales\", \"analysed_by\": \"Month\", \"points\": 23, \"baseline_mean\": 60661.81, \"baseline_std\": 28030.63, \"z_threshold\": 2.0, \"iqr_fence\": [-1118.11, 111742.19], \"anomalies\": [{\"Month\": \"1998-04\", \"Sales\": 134630.56, \"z_score\": 2.64, \"deviation_from_mean_pct\": 121.94, \"dir ... (truncated)"
+    },
+    {
+      "agent": "Analysis Agent",
+      "step": 2,
+      "tool": "submit_analysis",
+      "args": "{\"summary\": \"Anomaly detection identified a significant unusual spike in monthly sales for April 1998, reaching $134,630.56 (a z-score of 2.64, or 121.94% above the baseline mean of $60,661.81). No other months triggered anomaly thresholds.\", \"drivers\": [\"Monthly sales surge in April 1998 reached $134,630.56, which is 121.94% above the baseline mean ($60,661.81).\"], \"caveats\": [\"1998-05 is a parti ... (truncated)",
+      "result": "accepted"
+    }
+  ],
   "error": null,
   "sql_attempts": 1,
   "queries": [
     "primary"
   ],
   "failed_queries": [],
-  "seconds": 20.4,
+  "seconds": 38.4,
   "trace": [
     {
       "agent": "Intent Agent",
-      "step": "understand question",
+      "step": "understand question + guardrails",
       "status": "ok",
-      "detail": "anomaly | metric=Sales | dims=['Month'] | filters=[] | period=All",
-      "seconds": 7.22
+      "detail": "metric=Sales | dims=['Month'] | filters=[] | period=All",
+      "seconds": 2.02
     },
     {
       "agent": "Planning Agent",
       "step": "create execution plan",
       "status": "ok",
-      "detail": "4 steps, 1 data queries: ['primary']",
-      "seconds": 1.2
+      "detail": "3 steps, 1 data queries: ['primary']",
+      "seconds": 6.71
     },
     {
       "agent": "SQL Agent",
       "step": "generate SQL",
       "status": "ok",
       "detail": "query 'primary' attempt 1",
-      "seconds": 2.28
+      "seconds": 1.46
     },
     {
       "agent": "SQL Agent",
@@ -42,28 +84,21 @@
       "step": "execute SQL",
       "status": "ok",
       "detail": "'primary' -> 23 rows, columns ['Month', 'Sales', 'Orders']",
-      "seconds": 0.01
+      "seconds": 0.02
     },
     {
       "agent": "Analysis Agent",
-      "step": "profile data & choose analysis",
+      "step": "choose analysis via tool calling",
       "status": "ok",
-      "detail": "requested=anomaly, route=anomaly; primary: time=Month, metric=Sales, dims=[]",
-      "seconds": 0.0
-    },
-    {
-      "agent": "Analysis Agent",
-      "step": "anomaly detection",
-      "status": "ok",
-      "detail": "1 anomalies found",
-      "seconds": 7.58
+      "detail": "analysis_type=anomaly; tools used: ['anomaly_detection']",
+      "seconds": 6.94
     },
     {
       "agent": "Reporting Agent",
       "step": "charts + executive report",
       "status": "ok",
-      "detail": "1 charts, 2 recommendations -> 20261118_234507_are_there_any_unusual_spikes_o_6f73.md",
-      "seconds": 2.15
+      "detail": "1 charts, 3 recommendations -> 20261123_002008_are_there_any_unusual_spikes_o_0a89.md",
+      "seconds": 21.26
     }
   ]
 }
